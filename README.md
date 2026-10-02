@@ -7,9 +7,17 @@ O NexoEmu reúne os sistemas clássicos pedidos, sem PlayStation 1/2 ou consoles
 - **Super Nintendo / SNES:** núcleo Snes9x.
 - **Sega Mega Drive, Master System e Game Gear:** núcleo Genesis Plus GX.
 - **Arcade clássico:** núcleo MAME 2003-Plus.
+- **NES / Famicom:** núcleo FCEUmm.
+- **Game Boy / Game Boy Color:** núcleo Gambatte.
+- **Game Boy Advance:** núcleo mGBA.
+- **Atari 2600 e 7800:** núcleos Stella 2014 e ProSystem.
+- **PC Engine / TurboGrafx-16:** núcleo Beetle PCE Fast.
+- **Atari Lynx:** núcleo Beetle Lynx.
+- **Neo Geo Pocket / Color:** núcleo Beetle Neo Geo Pocket.
+- **WonderSwan / Color:** núcleo Beetle WonderSwan.
 - **Controles na tela:** alavanca virtual para movimentar o personagem, além de botões de ação, Start e Select.
 
-Os núcleos libretro são compilados para `armeabi-v7a` e `arm64-v8a`. O app mantém suporte previsto a Android 5.0 (API 21) ou posterior. Compatibilidade e velocidade dependem do aparelho; esta compilação deve ser testada em um telefone físico.
+Os núcleos libretro são compilados para `armeabi-v7a` e `arm64-v8a`. O app mantém suporte previsto a Android 5.0 (API 21) ou posterior. Os novos sistemas foram escolhidos por serem clássicos e, em geral, leves, mas compatibilidade e velocidade dependem do aparelho; esta compilação deve ser testada em um telefone físico.
 
 ## Jogos e BIOS
 O APK não inclui ROMs, jogos ou BIOS. Escolha seus próprios arquivos no seletor do Android e use apenas arquivos que você tenha direito de utilizar.
