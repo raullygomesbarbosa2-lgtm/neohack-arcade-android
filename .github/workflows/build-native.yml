@@ -41,19 +41,9 @@ jobs:
         run: python3 -m pip install --user Pillow
       - name: Apply launcher artwork and fix duplicate Kotlin classes
         run: python3 patch_native_project.py
-      - name: Build FBNeo native core for arcade
+      - name: Add LibretroDroid license
         run: |
-          git clone --depth 1 https://github.com/libretro/FBNeo.git "$RUNNER_TEMP/FBNeo"
-          cd "$RUNNER_TEMP/FBNeo/src/burner/libretro/jni"
-          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
-            APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
-          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/assets"
-          ARMV7_CORE=$(find "$RUNNER_TEMP/FBNeo" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
-          ARM64_CORE=$(find "$RUNNER_TEMP/FBNeo" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
-          test -n "$ARMV7_CORE" && test -n "$ARM64_CORE"
-          cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libfbneo_libretro_android.so"
-          cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libfbneo_libretro_android.so"
-          cp "$RUNNER_TEMP/FBNeo/src/license.txt" "$GITHUB_WORKSPACE/app/src/main/assets/FBNeo-LICENSE.txt"
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets"
           curl -fL --retry 3 https://raw.githubusercontent.com/Swordfish90/LibretroDroid/0.13.2/LICENSE -o "$GITHUB_WORKSPACE/app/src/main/assets/LibretroDroid-LICENSE.txt"
       - name: Build Snes9x native core for Super Nintendo
         run: |
@@ -82,6 +72,18 @@ jobs:
           cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgenesis_plus_gx_libretro_android.so"
           cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libgenesis_plus_gx_libretro_android.so"
           cp "$RUNNER_TEMP/genesis-plus-gx/LICENSE.txt" "$GITHUB_WORKSPACE/app/src/main/assets/Genesis-Plus-GX-LICENSE.txt"
+      - name: Build MAME 2003-Plus native core for classic arcade
+        run: |
+          git clone --depth 1 https://github.com/libretro/mame2003-plus-libretro.git "$RUNNER_TEMP/mame2003-plus"
+          cd "$RUNNER_TEMP/mame2003-plus"
+          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/assets"
+          ARMV7_CORE=$(find "$RUNNER_TEMP/mame2003-plus" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+          ARM64_CORE=$(find "$RUNNER_TEMP/mame2003-plus" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+          test -n "$ARMV7_CORE" && test -n "$ARM64_CORE"
+          cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libmame2003_plus_libretro_android.so"
+          cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libmame2003_plus_libretro_android.so"
+          cp LICENSE.md "$GITHUB_WORKSPACE/app/src/main/assets/MAME2003-Plus-LICENSE.md"
       - name: Build installable NexoEmu APK
         run: gradle assembleDebug --no-daemon
       - name: Publish direct APK download
@@ -92,5 +94,5 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk dist/NexoEmu-native.apk
           gh release create "native-${GITHUB_RUN_NUMBER}" dist/NexoEmu-native.apk \
             --target "$GITHUB_SHA" \
-            --title "NexoEmu classic systems + arcade ${GITHUB_RUN_NUMBER}" \
-            --notes "NexoEmu 0.5.0: CHIP-8, SNES/Snes9x, Mega Drive/Master System/Game Gear, and FBNeo arcade. ARMv7 + ARM64, Android 5.0+. No ROMs or BIOS included; no PS1/PS2 cores."
+            --title "NexoEmu classic systems ${GITHUB_RUN_NUMBER}" \
+            --notes "NexoEmu 0.6.0: CHIP-8, SNES/Snes9x, Mega Drive/Master System/Game Gear (Genesis Plus GX), MAME 2003-Plus arcade, and virtual joystick. ARMv7 + ARM64, Android 5.0+. No ROMs or BIOS included; no PS1 or PS2 cores."
