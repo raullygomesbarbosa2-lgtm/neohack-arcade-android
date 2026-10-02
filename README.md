@@ -1,17 +1,22 @@
-# NeoHack Arcade Android
+# NexoEmu — consoles clássicos e arcade (Android nativo)
 
-Frontend nativo para Android que carrega o núcleo FBNeo por meio da interface Libretro. O núcleo usa código upstream do projeto FBNeo; este aplicativo é uma integração/frontend, não um emulador escrito do zero.
+O NexoEmu reúne sistemas clássicos sem adicionar PlayStation 1, PlayStation 2 ou consoles modernos. A interface é nativa do Android, com visual escuro e neon ciano; não usa WebView nem pede permissão de internet.
 
-## Compatibilidade e desempenho
+## Sistemas incluídos
+- **CHIP-8:** interpretador próprio para arquivos `.ch8` e `.c8`.
+- **Super Nintendo / SNES:** núcleo Snes9x.
+- **Sega Mega Drive, Master System e Game Gear:** núcleo Genesis Plus GX.
+- **Arcade e Neo Geo compatíveis:** núcleo FBNeo.
 
-- APK preparado para `armeabi-v7a` (ARM 32-bit) e `arm64-v8a` (ARM 64-bit).
-- Versão mínima prevista: Android 5.0 (API 21). Dispositivos muito antigos ou fora dessas arquiteturas podem não ser compatíveis.
-- O desempenho depende do processador, GPU, memória, sistema e do jogo. Ainda não foi testado em um Galaxy J8 nem em outros aparelhos físicos; não há garantia de funcionamento sem travamentos em todos os celulares.
+Os três núcleos libretro são compilados para `armeabi-v7a` e `arm64-v8a`. O app mantém suporte previsto a Android 5.0 (API 21) ou posterior. Compatibilidade e velocidade dependem do aparelho e do jogo; o APK ainda precisa ser testado em um telefone físico.
 
-## ROMs e BIOS
+## Jogos e BIOS
+O APK não inclui ROMs, jogos ou BIOS. Escolha seus próprios arquivos no seletor do Android e use apenas arquivos que você tenha direito de utilizar. Alguns jogos arcade/Neo Geo podem exigir BIOS separada.
 
-O projeto e o APK não incluem ROMs, BIOS nem arquivos de jogos. Selecione apenas arquivos que você tenha direito de usar. No app, escolha a ROM Neo Geo e, quando necessário, a BIOS Neo Geo usando o seletor de arquivos do Android.
+## Perfil e privacidade
+- Perfil local com nome, avatares e foto escolhida na galeria; não há senha nem conta remota.
+- O manifesto principal não solicita acesso à internet.
+- Os avisos de licença dos núcleos usados são incluídos no APK.
 
-## Licenças
-
-O núcleo FBNeo é distribuído conforme a licença incluída no APK em `assets/FBNeo-LICENSE.txt`. A integração Android LibretroDroid também tem sua licença incluída no APK em `assets/LibretroDroid-LICENSE.txt`. Consulte os textos completos e os repositórios upstream: [FBNeo](https://github.com/libretro/FBNeo) e [LibretroDroid](https://github.com/Swordfish90/LibretroDroid).
+## Compilação
+A compilação nativa usa Android SDK 35, Java 17, Gradle 8.7 e NDK 27.2.12479018. O workflow do GitHub compila FBNeo, Snes9x e Genesis Plus GX para Android.
