@@ -41,6 +41,8 @@ jobs:
         run: python3 -m pip install --user Pillow
       - name: Apply launcher artwork and fix duplicate Kotlin classes
         run: python3 patch_native_project.py
+      - name: Add extra retro systems to Android app
+        run: python3 patch_retro_systems.py
       - name: Add LibretroDroid license
         run: |
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets"
@@ -76,7 +78,8 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/libretro/mame2003-plus-libretro.git "$RUNNER_TEMP/mame2003-plus"
           cd "$RUNNER_TEMP/mame2003-plus/jni"
-          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+            APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/assets"
           ARMV7_CORE=$(find "$RUNNER_TEMP/mame2003-plus" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
           ARM64_CORE=$(find "$RUNNER_TEMP/mame2003-plus" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
@@ -84,6 +87,41 @@ jobs:
           cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libmame2003_plus_libretro_android.so"
           cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libmame2003_plus_libretro_android.so"
           cp "$RUNNER_TEMP/mame2003-plus/LICENSE.md" "$GITHUB_WORKSPACE/app/src/main/assets/MAME2003-Plus-LICENSE.md"
+      - name: Build additional classic console cores
+        run: |
+          set -euo pipefail
+          build_core() {
+            local id="$1" repo="$2" checkout="$3" subdir="$4" output="$5"
+            local src="$RUNNER_TEMP/$id" armv7 arm64 license
+            git clone --depth 1 --branch "$checkout" "$repo" "$src"
+            cd "$src/$subdir"
+            "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+              APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+            armv7=$(find "$src" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+            arm64=$(find "$src" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+            test -n "$armv7" && test -n "$arm64"
+            cp "$armv7" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/lib${output}"
+            cp "$arm64" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/lib${output}"
+            license=$(find "$src" -maxdepth 4 -type f \
+              \( -iname 'LICENSE*' -o -iname 'COPYING*' \) -print -quit)
+            if [ -n "$license" ]; then
+              cp "$license" "$GITHUB_WORKSPACE/app/src/main/assets/${id}-LICENSE.txt"
+            else
+              echo "No top-level license file found for $id; preserving source license reference in README."
+            fi
+          }
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" \
+            "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" \
+            "$GITHUB_WORKSPACE/app/src/main/assets"
+          build_core fceumm https://github.com/libretro/libretro-fceumm.git master jni fceumm_libretro_android.so
+          build_core gambatte https://github.com/libretro/gambatte-libretro.git master libgambatte/libretro/jni gambatte_libretro_android.so
+          build_core mgba https://github.com/libretro/mgba.git master libretro-build/jni mgba_libretro_android.so
+          build_core stella2014 https://github.com/libretro/stella2014-libretro.git master jni stella2014_libretro_android.so
+          build_core prosystem https://github.com/libretro/prosystem-libretro.git master jni prosystem_libretro_android.so
+          build_core mednafen_pce_fast https://github.com/libretro/beetle-pce-fast-libretro.git master jni mednafen_pce_fast_libretro_android.so
+          build_core mednafen_lynx https://github.com/libretro/beetle-lynx-libretro.git master jni mednafen_lynx_libretro_android.so
+          build_core mednafen_ngp https://github.com/libretro/beetle-ngp-libretro.git master jni mednafen_ngp_libretro_android.so
+          build_core mednafen_wswan https://github.com/libretro/beetle-wswan-libretro.git master jni mednafen_wswan_libretro_android.so
       - name: Build installable NexoEmu APK
         run: gradle assembleDebug --no-daemon
       - name: Publish direct APK download
@@ -95,4 +133,4 @@ jobs:
           gh release create "native-${GITHUB_RUN_NUMBER}" dist/NexoEmu-native.apk \
             --target "$GITHUB_SHA" \
             --title "NexoEmu classic systems ${GITHUB_RUN_NUMBER}" \
-            --notes "NexoEmu 0.6.0: CHIP-8, SNES/Snes9x, Mega Drive/Master System/Game Gear (Genesis Plus GX), MAME 2003-Plus arcade, and virtual joystick. ARMv7 + ARM64, Android 5.0+. No ROMs or BIOS included; no PS1 or PS2 cores."
+            --notes "NexoEmu 0.7.0: CHIP-8; SNES; Mega Drive/Master System/Game Gear; MAME 2003-Plus arcade; NES/Famicom; Game Boy/Color; Game Boy Advance; Atari 2600/7800; PC Engine; Atari Lynx; Neo Geo Pocket/Color; WonderSwan/Color. Virtual joystick. ARMv7 + ARM64, Android 5.0+. No ROMs or BIOS included; no PS1/PS2 cores."
