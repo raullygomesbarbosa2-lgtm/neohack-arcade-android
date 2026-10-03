@@ -1,4 +1,4 @@
-name: Build RetroVex APK
+name: Build Vortix APK
 
 on:
   push:
@@ -122,15 +122,15 @@ jobs:
           build_core mednafen_lynx https://github.com/libretro/beetle-lynx-libretro.git master jni mednafen_lynx_libretro_android.so
           build_core mednafen_ngp https://github.com/libretro/beetle-ngp-libretro.git master jni mednafen_ngp_libretro_android.so
           build_core mednafen_wswan https://github.com/libretro/beetle-wswan-libretro.git master jni mednafen_wswan_libretro_android.so
-      - name: Build installable RetroVex APK
+      - name: Build installable Vortix APK
         run: gradle assembleDebug --no-daemon
       - name: Publish direct APK download
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/RetroVex.apk
-          gh release create "native-${GITHUB_RUN_NUMBER}" dist/RetroVex.apk \
+          cp app/build/outputs/apk/debug/app-debug.apk dist/Vortix.apk
+          gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix.apk \
             --target "$GITHUB_SHA" \
-            --title "RetroVex classic systems ${GITHUB_RUN_NUMBER}" \
-            --notes "RetroVex 0.8.0: CHIP-8; SNES; Mega Drive/Master System/Game Gear; MAME 2003-Plus arcade; NES/Famicom; Game Boy/Color; Game Boy Advance; Atari 2600/7800; PC Engine; Atari Lynx; Neo Geo Pocket/Color; WonderSwan/Color. Virtual joystick. ARMv7 + ARM64, Android 5.0+. No ROMs or BIOS included; no PS1/PS2 cores."
+            --title "Vortix classic systems ${GITHUB_RUN_NUMBER}" \
+            --notes "Vortix 0.9.0: CHIP-8; SNES; Mega Drive/Master System/Game Gear; MAME 2003-Plus arcade; NES/Famicom; Game Boy/Color; Game Boy Advance; Atari 2600/7800; PC Engine; Atari Lynx; Neo Geo Pocket/Color; WonderSwan/Color. Virtual joystick. ARMv7 + ARM64, Android 5.0+. No ROMs or BIOS included; no PS1/PS2 cores."
