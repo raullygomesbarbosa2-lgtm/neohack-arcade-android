@@ -9,7 +9,7 @@ O NexoEmu reúne os sistemas clássicos pedidos, sem PlayStation 1/2 ou consoles
 - **Arcade clássico:** núcleo MAME 2003-Plus.
 - **NES / Famicom:** núcleo FCEUmm.
 - **Game Boy / Game Boy Color:** núcleo Gambatte.
-- **Game Boy Advance:** núcleo mGBA.
+- **Game Boy Advance:** núcleo Beetle GBA.
 - **Atari 2600 e 7800:** núcleos Stella 2014 e ProSystem.
 - **PC Engine / TurboGrafx-16:** núcleo Beetle PCE Fast.
 - **Atari Lynx:** núcleo Beetle Lynx.
@@ -28,4 +28,4 @@ O APK não inclui ROMs, jogos ou BIOS. Escolha seus próprios arquivos no seleto
 - Os avisos de licença dos núcleos usados são incluídos no APK.
 
 ## Compilação
-A compilação nativa usa Android SDK 35, Java 17, Gradle 8.7 e NDK 27.2.12479018. O workflow do GitHub compila Snes9x, Genesis Plus GX e MAME 2003-Plus para Android.
+A compilação nativa usa Android SDK 35, Java 17, Gradle 8.7 e NDK 27.2.12479018. O workflow do GitHub compila os núcleos Libretro para Android, incluindo Snes9x, Genesis Plus GX, MAME 2003-Plus e os nove sistemas retrô adicionais.

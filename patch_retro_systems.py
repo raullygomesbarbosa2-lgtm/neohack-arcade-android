@@ -51,6 +51,16 @@ replace_once(
 )
 
 replace_once(
+    '''        data.setCoreFilePath(coreLibrary);''',
+    '''        File nativeCore = new File(getApplicationInfo().nativeLibraryDir, coreLibrary);
+        if (!nativeCore.isFile()) {
+            throw new IllegalStateException("Núcleo de emulação não encontrado no APK: " + coreLibrary);
+        }
+        data.setCoreFilePath(nativeCore.getAbsolutePath());''',
+    "absolute native core path to prevent blank emulator screen",
+)
+
+replace_once(
     '''    private Button menuButton(String label) {''',
     '''    private void showMoreSystemsDialog() {
         final int[] requestCodes = {
@@ -92,7 +102,7 @@ replace_once(
         switch (requestCode) {
             case REQUEST_NES: return new String[]{"libfceumm_libretro_android.so", "NINTENDO • NES / Famicom"};
             case REQUEST_GAMEBOY: return new String[]{"libgambatte_libretro_android.so", "NINTENDO • Game Boy / Game Boy Color"};
-            case REQUEST_GBA: return new String[]{"libmgba_libretro_android.so", "NINTENDO • Game Boy Advance"};
+            case REQUEST_GBA: return new String[]{"libmednafen_gba_libretro_android.so", "NINTENDO • Game Boy Advance (Beetle GBA)"};
             case REQUEST_ATARI2600: return new String[]{"libstella2014_libretro_android.so", "ATARI • 2600"};
             case REQUEST_ATARI7800: return new String[]{"libprosystem_libretro_android.so", "ATARI • 7800"};
             case REQUEST_PCE: return new String[]{"libmednafen_pce_fast_libretro_android.so", "PC ENGINE • TurboGrafx-16"};
