@@ -115,7 +115,7 @@ jobs:
             "$GITHUB_WORKSPACE/app/src/main/assets"
           build_core fceumm https://github.com/libretro/libretro-fceumm.git master jni fceumm_libretro_android.so
           build_core gambatte https://github.com/libretro/gambatte-libretro.git master libgambatte/libretro/jni gambatte_libretro_android.so
-          build_core mgba https://github.com/libretro/mgba.git master libretro-build/jni mgba_libretro_android.so
+          build_core mednafen_gba https://github.com/libretro/beetle-gba-libretro.git master jni mednafen_gba_libretro_android.so
           build_core stella2014 https://github.com/libretro/stella2014-libretro.git master jni stella2014_libretro_android.so
           build_core prosystem https://github.com/libretro/prosystem-libretro.git master jni prosystem_libretro_android.so
           build_core mednafen_pce_fast https://github.com/libretro/beetle-pce-fast-libretro.git master jni mednafen_pce_fast_libretro_android.so
