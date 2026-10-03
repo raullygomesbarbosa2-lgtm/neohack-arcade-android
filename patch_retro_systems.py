@@ -173,6 +173,189 @@ replace_once(
     "extract console-matched ROM files from ZIP archives",
 )
 
+replace_once(
+    'import com.swordfish.libretrodroid.GLRetroViewData;\n',
+    'import com.swordfish.libretrodroid.GLRetroViewData;\nimport com.swordfish.libretrodroid.ShaderConfig;\n',
+    "import shader choices",
+)
+
+replace_once(
+    '    private String selectedPhotoUri;\n',
+    '    private String selectedPhotoUri;\n    private File currentStateFile;\n    private String activeCheatCode = "";\n',
+    "save-state and cheat state",
+)
+
+replace_once(
+    '        savesDir.mkdirs();\n        GLRetroViewData data = new GLRetroViewData(this);',
+    '        savesDir.mkdirs();\n        String stateBase = (coreLibrary + "_" + rom.getName()).replaceAll("[^A-Za-z0-9._-]", "_");\n        if (stateBase.length() > 120) stateBase = stateBase.substring(0, 120);\n        currentStateFile = new File(savesDir, stateBase + ".state");\n        activeCheatCode = "";\n        GLRetroViewData data = new GLRetroViewData(this);',
+    "per-ROM save-state filename",
+)
+
+replace_once(
+    '        if (chip8View != null) { showLibrary(); return; }\n        if (profileScreenActive) {',
+    '        if (chip8View != null) { showLibrary(); return; }\n        if (retroView != null) { returnToRomSelection(); return; }\n        if (profileScreenActive) {',
+    "hardware back returns to ROM selection",
+)
+
+replace_once(
+    '        parent.addView(shoulderR, shoulderRParams);\n\n        VirtualJoystickView joystick = new VirtualJoystickView();',
+    '''        parent.addView(shoulderR, shoulderRParams);
+
+        Button changeRom = overlayMenuButton("ROM");
+        changeRom.setOnClickListener(v -> returnToRomSelection());
+        FrameLayout.LayoutParams changeRomParams = new FrameLayout.LayoutParams(dp(72), dp(36), Gravity.TOP | Gravity.LEFT);
+        changeRomParams.leftMargin = dp(12);
+        changeRomParams.topMargin = dp(76);
+        parent.addView(changeRom, changeRomParams);
+
+        Button options = overlayMenuButton("MENU");
+        options.setOnClickListener(v -> showGameOptions());
+        FrameLayout.LayoutParams optionsParams = new FrameLayout.LayoutParams(dp(72), dp(36), Gravity.TOP | Gravity.RIGHT);
+        optionsParams.rightMargin = dp(12);
+        optionsParams.topMargin = dp(76);
+        parent.addView(options, optionsParams);
+
+        VirtualJoystickView joystick = new VirtualJoystickView();''',
+    "ROM and options overlay buttons",
+)
+
+replace_once(
+    '    private final class VirtualJoystickView extends View {',
+    '''    private Button overlayMenuButton(String text) {
+        Button button = menuButton(text);
+        button.setTextSize(10);
+        button.setMinHeight(dp(32));
+        button.setMinWidth(0);
+        button.setPadding(0, 0, 0, 0);
+        return button;
+    }
+
+    private void returnToRomSelection() {
+        recreate();
+    }
+
+    private void showGameOptions() {
+        String[] options = {"Salvar estado", "Carregar estado", "Cheats", "Filtro de imagem"};
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Opções do jogo")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) saveCurrentState();
+                    else if (which == 1) loadCurrentState();
+                    else if (which == 2) showCheatDialog();
+                    else showImageFilterDialog();
+                })
+                .setNegativeButton("Fechar", null)
+                .show();
+    }
+
+    private void saveCurrentState() {
+        final GLRetroView view = retroView;
+        final File target = currentStateFile;
+        if (view == null || target == null) return;
+        new Thread(() -> {
+            try {
+                byte[] state = view.serializeState(true);
+                if (state == null || state.length == 0 || state.length > 128 * 1024 * 1024) {
+                    throw new IllegalStateException("Estado vazio ou grande demais.");
+                }
+                File temporary = new File(target.getParentFile(), target.getName() + ".tmp");
+                try (FileOutputStream output = new FileOutputStream(temporary)) {
+                    output.write(state);
+                    output.getFD().sync();
+                }
+                if (target.exists() && !target.delete()) throw new IllegalStateException("Não consegui substituir o save anterior.");
+                if (!temporary.renameTo(target)) throw new IllegalStateException("Não consegui gravar o save.");
+                runOnUiThread(() -> Toast.makeText(this, "Jogo salvo.", Toast.LENGTH_SHORT).show());
+            } catch (Exception error) {
+                runOnUiThread(() -> Toast.makeText(this, "Não foi possível salvar o estado.", Toast.LENGTH_LONG).show());
+            }
+        }, "vortix-save-state").start();
+    }
+
+    private void loadCurrentState() {
+        final GLRetroView view = retroView;
+        final File source = currentStateFile;
+        if (view == null || source == null) return;
+        if (!source.isFile()) {
+            Toast.makeText(this, "Ainda não existe um save para este jogo.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new Thread(() -> {
+            try (InputStream input = new java.io.FileInputStream(source);
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[64 * 1024];
+                int count;
+                long total = 0;
+                while ((count = input.read(buffer)) != -1) {
+                    total += count;
+                    if (total > 128L * 1024L * 1024L) throw new IllegalStateException("Save grande demais.");
+                    output.write(buffer, 0, count);
+                }
+                if (!view.unserializeState(output.toByteArray(), true)) {
+                    throw new IllegalStateException("O núcleo recusou o save.");
+                }
+                runOnUiThread(() -> Toast.makeText(this, "Save carregado.", Toast.LENGTH_SHORT).show());
+            } catch (Exception error) {
+                runOnUiThread(() -> Toast.makeText(this, "Não foi possível carregar o save deste jogo.", Toast.LENGTH_LONG).show());
+            }
+        }, "vortix-load-state").start();
+    }
+
+    private void showCheatDialog() {
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("Código compatível com este console");
+        if (!activeCheatCode.isEmpty()) input.setText(activeCheatCode);
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this)
+                .setTitle("Cheat")
+                .setMessage("O formato do código depende do núcleo e do jogo.")
+                .setView(input)
+                .setPositiveButton("Ativar", (dialog, which) -> {
+                    String code = input.getText().toString().trim();
+                    if (code.isEmpty() || retroView == null) return;
+                    try {
+                        retroView.setCheat(0, true, code, true);
+                        activeCheatCode = code;
+                        Toast.makeText(this, "Cheat ativado.", Toast.LENGTH_SHORT).show();
+                    } catch (Exception error) {
+                        Toast.makeText(this, "Esse código não foi aceito pelo núcleo.", Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton("Cancelar", null);
+        if (!activeCheatCode.isEmpty()) {
+            builder.setNeutralButton("Desativar", (dialog, which) -> {
+                try {
+                    if (retroView != null) retroView.setCheat(0, false, activeCheatCode, true);
+                    activeCheatCode = "";
+                    Toast.makeText(this, "Cheat desativado.", Toast.LENGTH_SHORT).show();
+                } catch (Exception error) {
+                    Toast.makeText(this, "Não foi possível desativar o cheat.", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+        builder.show();
+    }
+
+    private void showImageFilterDialog() {
+        String[] filters = {"Padrão", "Nítido", "CRT", "LCD"};
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Filtro de imagem")
+                .setItems(filters, (dialog, which) -> {
+                    if (retroView == null) return;
+                    if (which == 0) retroView.setShader(ShaderConfig.Default.INSTANCE);
+                    else if (which == 1) retroView.setShader(ShaderConfig.Sharp.INSTANCE);
+                    else if (which == 2) retroView.setShader(ShaderConfig.CRT.INSTANCE);
+                    else retroView.setShader(ShaderConfig.LCD.INSTANCE);
+                    Toast.makeText(this, "Filtro aplicado.", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private final class VirtualJoystickView extends View {''',
+    "save/load, cheat and image filter options",
+)
+
 text = text.replace("NexoEmu", "Vortix")
 main.write_text(text)
 
@@ -183,7 +366,7 @@ manifest.write_text(manifest_text)
 # Bump the generated app version for the expanded core bundle.
 gradle = ROOT / "app/build.gradle"
 gradle_text = gradle.read_text()
-gradle_text = gradle_text.replace("versionCode 6", "versionCode 12", 1)
-gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.9.3-shoulder-buttons'", 1)
+gradle_text = gradle_text.replace("versionCode 6", "versionCode 13", 1)
+gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.9.4-game-tools'", 1)
 gradle.write_text(gradle_text)
 print("Added nine additional retro systems and updated app version")
