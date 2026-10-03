@@ -119,7 +119,6 @@ replace_once(
 
 main.write_text(text)
 
-# Bump the generated app version for the expanded core bundle.
 gradle = ROOT / "app/build.gradle"
 gradle_text = gradle.read_text()
 gradle_text = gradle_text.replace("versionCode 6", "versionCode 7", 1)
