@@ -35,6 +35,26 @@ replace_once(
 )
 
 replace_once(
+    '''        parent.addView(label, labelParams);
+
+        VirtualJoystickView joystick = new VirtualJoystickView();''',
+    '''        parent.addView(label, labelParams);\n\n        Button shoulderL = keyButton("L", KeyEvent.KEYCODE_BUTTON_L1, dp(52), dp(42));
+        FrameLayout.LayoutParams shoulderLParams = new FrameLayout.LayoutParams(dp(52), dp(42), Gravity.TOP | Gravity.LEFT);
+        shoulderLParams.leftMargin = dp(12);
+        shoulderLParams.topMargin = dp(28);
+        parent.addView(shoulderL, shoulderLParams);
+
+        Button shoulderR = keyButton("R", KeyEvent.KEYCODE_BUTTON_R1, dp(52), dp(42));
+        FrameLayout.LayoutParams shoulderRParams = new FrameLayout.LayoutParams(dp(52), dp(42), Gravity.TOP | Gravity.RIGHT);
+        shoulderRParams.rightMargin = dp(12);
+        shoulderRParams.topMargin = dp(28);
+        parent.addView(shoulderR, shoulderRParams);
+
+        VirtualJoystickView joystick = new VirtualJoystickView();''',
+    "add L and R shoulder controls",
+)
+
+replace_once(
     "        panel.addView(info, infoParams);\n\n        Button chip = menuButton(\"Jogar CHIP-8 — abrir arquivo .ch8 / .c8\");",
     "        panel.addView(info, infoParams);\n\n        TextView romHelp = new TextView(this);\n        romHelp.setText(\"Escolha o console e selecione a ROM do jogo; não escolha um APK.\");\n        romHelp.setTextColor(0xffb6d5dc);\n        romHelp.setTextSize(12);\n        romHelp.setGravity(Gravity.CENTER);\n        panel.addView(romHelp, new LinearLayout.LayoutParams(-1, dp(30)));\n\n        Button chip = menuButton(\"Jogar CHIP-8 — abrir arquivo .ch8 / .c8\");",
     "ROM picker guidance",
@@ -163,7 +183,7 @@ manifest.write_text(manifest_text)
 # Bump the generated app version for the expanded core bundle.
 gradle = ROOT / "app/build.gradle"
 gradle_text = gradle.read_text()
-gradle_text = gradle_text.replace("versionCode 6", "versionCode 11", 1)
-gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.9.2-zip-roms'", 1)
+gradle_text = gradle_text.replace("versionCode 6", "versionCode 12", 1)
+gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.9.3-shoulder-buttons'", 1)
 gradle.write_text(gradle_text)
 print("Added nine additional retro systems and updated app version")
