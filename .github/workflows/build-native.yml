@@ -133,4 +133,4 @@ jobs:
           gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix.apk \
             --target "$GITHUB_SHA" \
             --title "Vortix classic systems ${GITHUB_RUN_NUMBER}" \
-            --notes "Vortix 0.9.0: CHIP-8; SNES; Mega Drive/Master System/Game Gear; MAME 2003-Plus arcade; NES/Famicom; Game Boy/Color; Game Boy Advance; Atari 2600/7800; PC Engine; Atari Lynx; Neo Geo Pocket/Color; WonderSwan/Color. Virtual joystick. ARMv7 + ARM64, Android 5.0+. No ROMs or BIOS included; no PS1/PS2 cores."
+            --notes "Vortix 0.9.1: CHIP-8; SNES; Mega Drive/Master System/Game Gear; MAME 2003-Plus arcade; NES/Famicom; Game Boy/Color; Game Boy Advance; Atari 2600/7800; PC Engine; Atari Lynx; Neo Geo Pocket/Color; WonderSwan/Color. Virtual joystick. ARMv7 + ARM64, Android 5.0+. No ROMs or BIOS included; no PS1/PS2 cores."
