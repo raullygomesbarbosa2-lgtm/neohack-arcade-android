@@ -1,6 +1,6 @@
-# RetroVex — consoles clássicos (Android nativo)
+# Vortix — consoles clássicos (Android nativo)
 
-O RetroVex reúne os sistemas clássicos pedidos, sem PlayStation 1/2 ou consoles modernos. A interface é nativa do Android, com visual escuro e neon ciano; não usa WebView nem pede permissão de internet.
+O Vortix reúne os sistemas clássicos pedidos, sem PlayStation 1/2 ou consoles modernos. A interface é nativa do Android, com visual escuro e neon ciano; não usa WebView nem pede permissão de internet.
 
 ## Sistemas incluídos
 - **CHIP-8:** interpretador próprio para arquivos `.ch8` e `.c8`.
@@ -20,7 +20,7 @@ O RetroVex reúne os sistemas clássicos pedidos, sem PlayStation 1/2 ou console
 Os núcleos libretro são compilados para `armeabi-v7a` e `arm64-v8a`. O app mantém suporte previsto a Android 5.0 (API 21) ou posterior. Os novos sistemas foram escolhidos por serem clássicos e, em geral, leves, mas compatibilidade e velocidade dependem do aparelho; esta compilação deve ser testada em um telefone físico.
 
 ## Jogos e BIOS
-O APK não inclui ROMs, jogos ou BIOS. Escolha seus próprios arquivos no seletor do Android e use apenas arquivos que você tenha direito de utilizar.
+O app não inclui ROMs, jogos ou BIOS. Toque no console e selecione o arquivo do jogo no seletor do Android; o APK é só o instalador, não uma ROM. Use apenas arquivos que você tenha direito de utilizar.
 
 ## Perfil e privacidade
 - Perfil local com nome, avatares e foto escolhida na galeria; não há senha nem conta remota.
