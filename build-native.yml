@@ -1,0 +1,136 @@
+name: Build RetroVex APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Install Android SDK and NDK
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
+            "platforms;android-35" "build-tools;35.0.0" \
+            "ndk;${NDK_VERSION}" "cmake;3.22.1"
+      - name: Generate Android project files
+        run: python3 make_apk_project.py
+      - name: Install Pillow for launcher artwork
+        run: python3 -m pip install --user Pillow
+      - name: Apply launcher artwork and fix duplicate Kotlin classes
+        run: python3 patch_native_project.py
+      - name: Add extra retro systems to Android app
+        run: python3 patch_retro_systems.py
+      - name: Add LibretroDroid license
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets"
+          curl -fL --retry 3 https://raw.githubusercontent.com/Swordfish90/LibretroDroid/0.13.2/LICENSE -o "$GITHUB_WORKSPACE/app/src/main/assets/LibretroDroid-LICENSE.txt"
+      - name: Build Snes9x native core for Super Nintendo
+        run: |
+          git clone --depth 1 https://github.com/libretro/snes9x.git "$RUNNER_TEMP/snes9x"
+          cd "$RUNNER_TEMP/snes9x/libretro/jni"
+          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+            APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/assets"
+          ARMV7_CORE=$(find "$RUNNER_TEMP/snes9x" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+          ARM64_CORE=$(find "$RUNNER_TEMP/snes9x" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+          test -n "$ARMV7_CORE" && test -n "$ARM64_CORE"
+          cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libsnes9x_libretro_android.so"
+          cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libsnes9x_libretro_android.so"
+          cp "$RUNNER_TEMP/snes9x/LICENSE" "$GITHUB_WORKSPACE/app/src/main/assets/Snes9x-LICENSE.txt"
+          if [ -f "$RUNNER_TEMP/snes9x/filter/snes_ntsc-license.txt" ]; then cp "$RUNNER_TEMP/snes9x/filter/snes_ntsc-license.txt" "$GITHUB_WORKSPACE/app/src/main/assets/Snes9x-NTSC-LICENSE.txt"; fi
+      - name: Build Genesis Plus GX native core for classic Sega systems
+        run: |
+          git clone --depth 1 https://github.com/libretro/Genesis-Plus-GX-Wide.git "$RUNNER_TEMP/genesis-plus-gx"
+          cd "$RUNNER_TEMP/genesis-plus-gx/libretro/jni"
+          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+            APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/assets"
+          ARMV7_CORE=$(find "$RUNNER_TEMP/genesis-plus-gx" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+          ARM64_CORE=$(find "$RUNNER_TEMP/genesis-plus-gx" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+          test -n "$ARMV7_CORE" && test -n "$ARM64_CORE"
+          cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgenesis_plus_gx_libretro_android.so"
+          cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libgenesis_plus_gx_libretro_android.so"
+          cp "$RUNNER_TEMP/genesis-plus-gx/LICENSE.txt" "$GITHUB_WORKSPACE/app/src/main/assets/Genesis-Plus-GX-LICENSE.txt"
+      - name: Build MAME 2003-Plus native core for classic arcade
+        run: |
+          git clone --depth 1 https://github.com/libretro/mame2003-plus-libretro.git "$RUNNER_TEMP/mame2003-plus"
+          cd "$RUNNER_TEMP/mame2003-plus/jni"
+          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+            APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/assets"
+          ARMV7_CORE=$(find "$RUNNER_TEMP/mame2003-plus" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+          ARM64_CORE=$(find "$RUNNER_TEMP/mame2003-plus" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+          test -n "$ARMV7_CORE" && test -n "$ARM64_CORE"
+          cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libmame2003_plus_libretro_android.so"
+          cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libmame2003_plus_libretro_android.so"
+          cp "$RUNNER_TEMP/mame2003-plus/LICENSE.md" "$GITHUB_WORKSPACE/app/src/main/assets/MAME2003-Plus-LICENSE.md"
+      - name: Build additional classic console cores
+        run: |
+          set -euo pipefail
+          build_core() {
+            local id="$1" repo="$2" checkout="$3" subdir="$4" output="$5"
+            local src="$RUNNER_TEMP/$id" armv7 arm64 license
+            git clone --depth 1 --branch "$checkout" "$repo" "$src"
+            cd "$src/$subdir"
+            "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+              APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+            armv7=$(find "$src" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+            arm64=$(find "$src" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+            test -n "$armv7" && test -n "$arm64"
+            cp "$armv7" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/lib${output}"
+            cp "$arm64" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/lib${output}"
+            license=$(find "$src" -maxdepth 4 -type f \
+              \( -iname 'LICENSE*' -o -iname 'COPYING*' \) -print -quit)
+            if [ -n "$license" ]; then
+              cp "$license" "$GITHUB_WORKSPACE/app/src/main/assets/${id}-LICENSE.txt"
+            else
+              echo "No top-level license file found for $id; preserving source license reference in README."
+            fi
+          }
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" \
+            "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" \
+            "$GITHUB_WORKSPACE/app/src/main/assets"
+          build_core fceumm https://github.com/libretro/libretro-fceumm.git master jni fceumm_libretro_android.so
+          build_core gambatte https://github.com/libretro/gambatte-libretro.git master libgambatte/libretro/jni gambatte_libretro_android.so
+          build_core mednafen_gba https://github.com/libretro/beetle-gba-libretro.git master jni mednafen_gba_libretro_android.so
+          build_core stella2014 https://github.com/libretro/stella2014-libretro.git master jni stella2014_libretro_android.so
+          build_core prosystem https://github.com/libretro/prosystem-libretro.git master jni prosystem_libretro_android.so
+          build_core mednafen_pce_fast https://github.com/libretro/beetle-pce-fast-libretro.git master jni mednafen_pce_fast_libretro_android.so
+          build_core mednafen_lynx https://github.com/libretro/beetle-lynx-libretro.git master jni mednafen_lynx_libretro_android.so
+          build_core mednafen_ngp https://github.com/libretro/beetle-ngp-libretro.git master jni mednafen_ngp_libretro_android.so
+          build_core mednafen_wswan https://github.com/libretro/beetle-wswan-libretro.git master jni mednafen_wswan_libretro_android.so
+      - name: Build installable RetroVex APK
+        run: gradle assembleDebug --no-daemon
+      - name: Publish direct APK download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/RetroVex.apk
+          gh release create "native-${GITHUB_RUN_NUMBER}" dist/RetroVex.apk \
+            --target "$GITHUB_SHA" \
+            --title "RetroVex classic systems ${GITHUB_RUN_NUMBER}" \
+            --notes "RetroVex 0.8.0: CHIP-8; SNES; Mega Drive/Master System/Game Gear; MAME 2003-Plus arcade; NES/Famicom; Game Boy/Color; Game Boy Advance; Atari 2600/7800; PC Engine; Atari Lynx; Neo Geo Pocket/Color; WonderSwan/Color. Virtual joystick. ARMv7 + ARM64, Android 5.0+. No ROMs or BIOS included; no PS1/PS2 cores."

@@ -117,11 +117,17 @@ replace_once(
     "core mapping",
 )
 
+text = text.replace("NexoEmu", "RetroVex")
 main.write_text(text)
 
+manifest = ROOT / "app/src/main/AndroidManifest.xml"
+manifest_text = manifest.read_text().replace('android:label="NexoEmu"', 'android:label="RetroVex"')
+manifest.write_text(manifest_text)
+
+# Bump the generated app version for the expanded core bundle.
 gradle = ROOT / "app/build.gradle"
 gradle_text = gradle.read_text()
-gradle_text = gradle_text.replace("versionCode 6", "versionCode 7", 1)
-gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.7.0-retro-pack'", 1)
+gradle_text = gradle_text.replace("versionCode 6", "versionCode 8", 1)
+gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.8.0-retro-pack'", 1)
 gradle.write_text(gradle_text)
 print("Added nine additional retro systems and updated app version")

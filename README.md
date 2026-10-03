@@ -1,6 +1,6 @@
-# NexoEmu — consoles clássicos (Android nativo)
+# RetroVex — consoles clássicos (Android nativo)
 
-O NexoEmu reúne os sistemas clássicos pedidos, sem PlayStation 1/2 ou consoles modernos. A interface é nativa do Android, com visual escuro e neon ciano; não usa WebView nem pede permissão de internet.
+O RetroVex reúne os sistemas clássicos pedidos, sem PlayStation 1/2 ou consoles modernos. A interface é nativa do Android, com visual escuro e neon ciano; não usa WebView nem pede permissão de internet.
 
 ## Sistemas incluídos
 - **CHIP-8:** interpretador próprio para arquivos `.ch8` e `.c8`.
