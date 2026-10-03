@@ -35,6 +35,30 @@ replace_once(
 )
 
 replace_once(
+    "        panel.addView(info, infoParams);\n\n        Button chip = menuButton(\"Jogar CHIP-8 — abrir arquivo .ch8 / .c8\");",
+    "        panel.addView(info, infoParams);\n\n        TextView romHelp = new TextView(this);\n        romHelp.setText(\"Escolha o console e selecione a ROM do jogo; não escolha um APK.\");\n        romHelp.setTextColor(0xffb6d5dc);\n        romHelp.setTextSize(12);\n        romHelp.setGravity(Gravity.CENTER);\n        panel.addView(romHelp, new LinearLayout.LayoutParams(-1, dp(30)));\n\n        Button chip = menuButton(\"Jogar CHIP-8 — abrir arquivo .ch8 / .c8\");",
+    "ROM picker guidance",
+)
+
+replace_once(
+    "        intent.setType(requestCode == REQUEST_PROFILE_PHOTO ? \"image/*\" : \"*/*\");",
+    "        intent.setType(requestCode == REQUEST_PROFILE_PHOTO ? \"image/*\" : \"*/*\");\n        intent.putExtra(Intent.EXTRA_TITLE, requestCode == REQUEST_PROFILE_PHOTO ? \"Escolha uma foto\" : \"Escolha a ROM do jogo (não o APK)\");",
+    "file picker title",
+)
+
+replace_once(
+    "            Uri uri = data.getData();",
+    "            Uri uri = data.getData();\n            if (requestCode != REQUEST_PROFILE_PHOTO) rejectInstallerFile(uri);",
+    "reject installer files to prevent black screen",
+)
+
+replace_once(
+    "    @Override @SuppressWarnings(\"deprecation\")\n    protected void onActivityResult(int requestCode, int resultCode, Intent data) {",
+    "    private void rejectInstallerFile(Uri uri) {\n        String name = displayName(uri);\n        if (name == null) return;\n        String lower = name.toLowerCase(java.util.Locale.ROOT);\n        if (lower.endsWith(\".apk\") || lower.endsWith(\".xapk\") || lower.endsWith(\".apks\")) {\n            throw new IllegalArgumentException(\"Esse arquivo é um instalador APK, não um jogo. Volte e escolha uma ROM, por exemplo .sfc, .nes, .gba ou .zip.\");\n        }\n    }\n\n    @Override @SuppressWarnings(\"deprecation\")\n    protected void onActivityResult(int requestCode, int resultCode, Intent data) {",
+    "ROM versus APK guard",
+)
+
+replace_once(
     '''        panel.addView(arcade, arcadeParams);
 
         ScrollView scroll = new ScrollView(this);''',
@@ -117,17 +141,17 @@ replace_once(
     "core mapping",
 )
 
-text = text.replace("NexoEmu", "RetroVex")
+text = text.replace("NexoEmu", "Vortix")
 main.write_text(text)
 
 manifest = ROOT / "app/src/main/AndroidManifest.xml"
-manifest_text = manifest.read_text().replace('android:label="NexoEmu"', 'android:label="RetroVex"')
+manifest_text = manifest.read_text().replace('android:label="NexoEmu"', 'android:label="Vortix"')
 manifest.write_text(manifest_text)
 
 # Bump the generated app version for the expanded core bundle.
 gradle = ROOT / "app/build.gradle"
 gradle_text = gradle.read_text()
-gradle_text = gradle_text.replace("versionCode 6", "versionCode 8", 1)
-gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.8.0-retro-pack'", 1)
+gradle_text = gradle_text.replace("versionCode 6", "versionCode 9", 1)
+gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.9.0-vortix'", 1)
 gradle.write_text(gradle_text)
 print("Added nine additional retro systems and updated app version")
