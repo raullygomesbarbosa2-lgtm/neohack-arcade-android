@@ -85,6 +85,12 @@ replace_once(
 )
 
 replace_once(
+    "        data.setSkipDuplicateFrames(true);",
+    "        data.setSkipDuplicateFrames(false);",
+    "disable duplicate-frame skipping to test black video output",
+)
+
+replace_once(
     '''    private Button menuButton(String label) {''',
     '''    private void showMoreSystemsDialog() {
         final int[] requestCodes = {
@@ -151,7 +157,7 @@ manifest.write_text(manifest_text)
 # Bump the generated app version for the expanded core bundle.
 gradle = ROOT / "app/build.gradle"
 gradle_text = gradle.read_text()
-gradle_text = gradle_text.replace("versionCode 6", "versionCode 9", 1)
-gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.9.0-vortix'", 1)
+gradle_text = gradle_text.replace("versionCode 6", "versionCode 10", 1)
+gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.9.1-frame-output'", 1)
 gradle.write_text(gradle_text)
 print("Added nine additional retro systems and updated app version")
