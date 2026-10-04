@@ -360,7 +360,6 @@ replace_once(
     '    private String activeCheatCode = "";\n',
     '''    private String activeCheatCode = "";
     private final android.os.Handler specialMacroHandler = new android.os.Handler(android.os.Looper.getMainLooper());
-    private final long[] lastSpecialTapAt = new long[4];
     private boolean specialMacroRunning;
 ''',
     "special-move macro state",
