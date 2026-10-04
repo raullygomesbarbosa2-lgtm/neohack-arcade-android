@@ -356,6 +356,214 @@ replace_once(
     "save/load, cheat and image filter options",
 )
 
+replace_once(
+    '    private String activeCheatCode = "";\n',
+    '''    private String activeCheatCode = "";
+    private final android.os.Handler specialMacroHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final long[] lastSpecialTapAt = new long[4];
+    private boolean specialMacroRunning;
+''',
+    "special-move macro state",
+)
+
+replace_once(
+    '        String[] options = {"Salvar estado", "Carregar estado", "Cheats", "Filtro de imagem"};\n',
+    '        String[] options = {"Salvar estado", "Carregar estado", "Cheats", "Filtro de imagem", "Configurar especiais"};\n',
+    "special-move configuration menu item",
+)
+
+replace_once(
+    '                    else showImageFilterDialog();\n',
+    '                    else if (which == 3) showImageFilterDialog();\n                    else showSpecialConfigDialog();\n',
+    "special-move configuration menu action",
+)
+
+replace_once(
+    '    private void showImageFilterDialog() {',
+    '''    private String specialMovePreferenceKey(int slot) {
+        String game = currentStateFile == null ? "default" : currentStateFile.getName();
+        return "special_move_" + game + "_" + slot;
+    }
+
+    private int specialSlotForKey(int keyCode) {
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_A) return 0;
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_B) return 1;
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_X) return 2;
+        if (keyCode == KeyEvent.KEYCODE_BUTTON_Y) return 3;
+        return -1;
+    }
+
+    private boolean hasSpecialMacro(int slot) {
+        return slot >= 0 && !getPreferences(0).getString(specialMovePreferenceKey(slot), "").trim().isEmpty();
+    }
+
+    private int specialKeyCode(String token) {
+        switch (token.trim().toUpperCase(java.util.Locale.ROOT)) {
+            case "UP": case "CIMA": return KeyEvent.KEYCODE_DPAD_UP;
+            case "DOWN": case "BAIXO": return KeyEvent.KEYCODE_DPAD_DOWN;
+            case "LEFT": case "ESQUERDA": return KeyEvent.KEYCODE_DPAD_LEFT;
+            case "RIGHT": case "DIREITA": return KeyEvent.KEYCODE_DPAD_RIGHT;
+            case "A": return KeyEvent.KEYCODE_BUTTON_A;
+            case "B": return KeyEvent.KEYCODE_BUTTON_B;
+            case "C": case "X": return KeyEvent.KEYCODE_BUTTON_X;
+            case "D": case "Y": return KeyEvent.KEYCODE_BUTTON_Y;
+            case "L": return KeyEvent.KEYCODE_BUTTON_L1;
+            case "R": return KeyEvent.KEYCODE_BUTTON_R1;
+            case "START": return KeyEvent.KEYCODE_BUTTON_START;
+            case "SELECT": return KeyEvent.KEYCODE_BUTTON_SELECT;
+            default: return -1;
+        }
+    }
+
+    private java.util.ArrayList<Integer> parseSpecialSequence(String sequence) {
+        java.util.ArrayList<Integer> keys = new java.util.ArrayList<>();
+        if (sequence == null || sequence.trim().isEmpty()) return keys;
+        String[] tokens = sequence.split(",");
+        if (tokens.length > 16) throw new IllegalArgumentException("Use até 16 comandos por especial.");
+        for (String token : tokens) {
+            int key = specialKeyCode(token);
+            if (key < 0) throw new IllegalArgumentException("Comando inválido: " + token.trim());
+            keys.add(key);
+        }
+        return keys;
+    }
+
+    private void showSpecialConfigDialog() {
+        String[] labels = {"Especial do botão A", "Especial do botão B", "Especial do botão C", "Especial do botão D"};
+        android.widget.LinearLayout form = new android.widget.LinearLayout(this);
+        form.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int padding = dp(18);
+        form.setPadding(padding, dp(8), padding, dp(8));
+        android.widget.TextView hint = new android.widget.TextView(this);
+        hint.setText("Configure uma sequência por botão, separada por vírgulas. Exemplo: BAIXO, DIREITA, A. O toque duplo no botão correspondente executa o especial.");
+        form.addView(hint, new android.widget.LinearLayout.LayoutParams(-1, -2));
+        EditText[] fields = new EditText[4];
+        for (int i = 0; i < fields.length; i++) {
+            android.widget.TextView label = new android.widget.TextView(this);
+            label.setText(labels[i]);
+            android.widget.LinearLayout.LayoutParams labelParams = new android.widget.LinearLayout.LayoutParams(-1, -2);
+            labelParams.topMargin = dp(8);
+            form.addView(label, labelParams);
+            fields[i] = new EditText(this);
+            fields[i].setSingleLine(true);
+            fields[i].setHint("BAIXO, DIREITA, A");
+            fields[i].setText(getPreferences(0).getString(specialMovePreferenceKey(i), ""));
+            form.addView(fields[i], new android.widget.LinearLayout.LayoutParams(-1, -2));
+        }
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(form);
+        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+                .setTitle("Configurar especiais")
+                .setView(scroll)
+                .setPositiveButton("Salvar", (d, which) -> {
+                    String[] values = new String[fields.length];
+                    try {
+                        for (int i = 0; i < fields.length; i++) {
+                            values[i] = fields[i].getText().toString().trim();
+                            parseSpecialSequence(values[i]);
+                        }
+                    } catch (IllegalArgumentException error) {
+                        Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    android.content.SharedPreferences.Editor editor = getPreferences(0).edit();
+                    for (int i = 0; i < values.length; i++) editor.putString(specialMovePreferenceKey(i), values[i]);
+                    editor.apply();
+                    Toast.makeText(this, "Especiais salvos para este jogo.", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Cancelar", null)
+                .create();
+        dialog.show();
+    }
+
+    private void triggerSpecialMacro(int slot) {
+        if (specialMacroRunning || retroView == null) return;
+        String raw = getPreferences(0).getString(specialMovePreferenceKey(slot), "");
+        if (raw.trim().isEmpty()) {
+            Toast.makeText(this, "Configure o especial deste botão no MENU.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final java.util.ArrayList<Integer> sequence;
+        try {
+            sequence = parseSpecialSequence(raw);
+        } catch (IllegalArgumentException error) {
+            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (sequence.isEmpty()) return;
+        specialMacroRunning = true;
+        playSpecialMacroStep(sequence, 0);
+    }
+
+    private void playSpecialMacroStep(java.util.ArrayList<Integer> sequence, int index) {
+        if (retroView == null || index >= sequence.size()) {
+            specialMacroRunning = false;
+            return;
+        }
+        int key = sequence.get(index);
+        retroView.sendKeyEvent(KeyEvent.ACTION_DOWN, key, 0);
+        specialMacroHandler.postDelayed(() -> {
+            if (retroView != null) retroView.sendKeyEvent(KeyEvent.ACTION_UP, key, 0);
+            specialMacroHandler.postDelayed(() -> playSpecialMacroStep(sequence, index + 1), 35);
+        }, 70);
+    }
+
+    private void showImageFilterDialog() {''',
+    "configurable double-tap special macros",
+)
+
+replace_once(
+    '''    private Button keyButton(String text, int keyCode, int width, int height) {
+        Button button = new Button(this);
+        button.setText(text); button.setTextColor(Color.WHITE); button.setTextSize(text.length() > 1 ? 11 : 17);
+        button.setAllCaps(false); button.setPadding(0, 0, 0, 0);
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(0x990b1018); background.setCornerRadius(dp(24)); background.setStroke(dp(1), 0x99ffffff);
+        button.setBackground(background);
+        button.setOnTouchListener((view, event) -> {
+            if (retroView == null) return true;
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) retroView.sendKeyEvent(KeyEvent.ACTION_DOWN, keyCode, 0);
+            else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) retroView.sendKeyEvent(KeyEvent.ACTION_UP, keyCode, 0);
+            return true;
+        });
+        button.setLayoutParams(new FrameLayout.LayoutParams(width, height));
+        return button;
+    }''',
+    '''    private Button keyButton(String text, int keyCode, int width, int height) {
+        Button button = new Button(this);
+        button.setText(text); button.setTextColor(Color.WHITE); button.setTextSize(text.length() > 1 ? 11 : 17);
+        button.setAllCaps(false); button.setPadding(0, 0, 0, 0);
+        GradientDrawable background = new GradientDrawable();
+        background.setColor(0x990b1018); background.setCornerRadius(dp(24)); background.setStroke(dp(1), 0x99ffffff);
+        button.setBackground(background);
+        int specialSlot = specialSlotForKey(keyCode);
+        final long[] lastTap = {0L};
+        final boolean[] isSecondTap = {false};
+        button.setOnTouchListener((view, event) -> {
+            if (retroView == null) return true;
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                long now = android.os.SystemClock.uptimeMillis();
+                isSecondTap[0] = specialSlot >= 0 && hasSpecialMacro(specialSlot)
+                        && lastTap[0] > 0
+                        && now - lastTap[0] <= android.view.ViewConfiguration.getDoubleTapTimeout();
+                lastTap[0] = isSecondTap[0] ? 0L : now;
+                if (!isSecondTap[0]) retroView.sendKeyEvent(KeyEvent.ACTION_DOWN, keyCode, 0);
+            } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (!isSecondTap[0]) retroView.sendKeyEvent(KeyEvent.ACTION_UP, keyCode, 0);
+                if (action == MotionEvent.ACTION_UP && isSecondTap[0]) triggerSpecialMacro(specialSlot);
+                if (action == MotionEvent.ACTION_CANCEL) lastTap[0] = 0L;
+                isSecondTap[0] = false;
+            }
+            return true;
+        });
+        button.setLayoutParams(new FrameLayout.LayoutParams(width, height));
+        return button;
+    }''',
+    "double-tap triggers configured special on action buttons",
+)
+
 text = text.replace("NexoEmu", "Vortix")
 main.write_text(text)
 
@@ -366,7 +574,7 @@ manifest.write_text(manifest_text)
 # Bump the generated app version for the expanded core bundle.
 gradle = ROOT / "app/build.gradle"
 gradle_text = gradle.read_text()
-gradle_text = gradle_text.replace("versionCode 6", "versionCode 13", 1)
-gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.9.4-game-tools'", 1)
+gradle_text = gradle_text.replace("versionCode 6", "versionCode 14", 1)
+gradle_text = gradle_text.replace("versionName '0.6.0-classic'", "versionName '0.9.5-special-macros'", 1)
 gradle.write_text(gradle_text)
 print("Added nine additional retro systems and updated app version")
