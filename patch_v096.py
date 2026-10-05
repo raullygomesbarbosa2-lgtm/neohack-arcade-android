@@ -402,6 +402,16 @@ replace_once(
     '        enterImmersiveMode();\n        startActivityForResult(intent, requestCode);',
     "immersive mode around ROM selection",
 )
+replace_once(
+    '    private void enterImmersiveMode() {',
+    '''    @Override public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) enterImmersiveMode();
+    }
+
+    private void enterImmersiveMode() {''',
+    "restore immersive fullscreen after returning from the system file picker",
+)
 
 main.write_text(text)
 

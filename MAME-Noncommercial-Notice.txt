@@ -1,0 +1,15 @@
+Arcade core licensing and attribution notice
+
+This Vortix build packages Libretro Android core binaries for FBNeo, MAME 2000 (MAME 0.37b5), MAME 2003 (MAME 0.78), MAME 2003-Plus (MAME 0.78+), and MAME 2010 (MAME 0.139). Their source code contains contributions from the respective project authors and upstream MAME contributors. The exact archive SHA-256 values for the Libretro Android nightly binaries are recorded in assets/cores/ARCADE_BUILD_INFO.txt in the APK.
+
+MAME core builds in this package are subject to non-commercial-use restrictions and other terms in their upstream license notices. In particular, the MAME 2003-Plus core source identifies itself as licensed under the classic MAME Non-Commercial License for MAME 0.78, which prohibits selling MAME or using it in a commercial product or activity and requires source availability for derivative works. The full MAME 2003-Plus license is included in this APK as MAME2003-Plus-LICENSE.md. MAME 2010 (0.139) likewise prohibits selling MAME; see the upstream documentation. Check all core-specific and third-party notices before redistributing a modified build; additional components may have different terms.
+
+Sources:
+- MAME 2000 / MAME 0.37b5: https://github.com/libretro/mame2000-libretro
+- MAME 2003 / MAME 0.78: https://github.com/libretro/mame2003-libretro
+- MAME 2003-Plus / MAME 0.78+: https://github.com/libretro/mame2003-plus-libretro
+- MAME 2010 / MAME 0.139: https://github.com/libretro/mame2010-libretro (license documentation: https://github.com/libretro/mame2010-libretro/blob/master/docs/mame.txt)
+- FBNeo: https://github.com/libretro/FBNeo (full license text is included in this APK as FBNeo-License.txt)
+- Android core binaries: https://buildbot.libretro.com/nightly/android/latest/
+
+Vortix distributes no game ROMs or BIOS files. Users are responsible for obtaining only files they are legally entitled to use. This notice is informational and is not legal advice.
