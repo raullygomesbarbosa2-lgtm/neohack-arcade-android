@@ -43,9 +43,13 @@ jobs:
         run: python3 patch_native_project.py
       - name: Add extra retro systems to Android app
         run: python3 patch_retro_systems.py
-      - name: Add LibretroDroid license
+      - name: Add white-neon UI, ROM detection and arcade combo controls
+        run: python3 patch_v096.py
+      - name: Add bundled core and LibretroDroid license notices
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets"
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"
+          cp "$GITHUB_WORKSPACE/FBNeo-License.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/FBNeo-License.txt"
+          cp "$GITHUB_WORKSPACE/MAME-Noncommercial-Notice.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/MAME-Noncommercial-Notice.txt"
           curl -fL --retry 3 https://raw.githubusercontent.com/Swordfish90/LibretroDroid/0.13.2/LICENSE -o "$GITHUB_WORKSPACE/app/src/main/assets/LibretroDroid-LICENSE.txt"
       - name: Build Snes9x native core for Super Nintendo
         run: |
@@ -122,8 +126,62 @@ jobs:
           build_core mednafen_lynx https://github.com/libretro/beetle-lynx-libretro.git master jni mednafen_lynx_libretro_android.so
           build_core mednafen_ngp https://github.com/libretro/beetle-ngp-libretro.git master jni mednafen_ngp_libretro_android.so
           build_core mednafen_wswan https://github.com/libretro/beetle-wswan-libretro.git master jni mednafen_wswan_libretro_android.so
+      - name: Download and verify FBNeo and MAME ROMset cores
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://buildbot.libretro.com/nightly/android/latest'
+          mkdir -p app/src/main/assets/cores app/src/main/assets/licenses
+          test -s app/src/main/assets/licenses/FBNeo-License.txt
+          test -s app/src/main/assets/licenses/MAME-Noncommercial-Notice.txt
+          for abi in arm64-v8a armeabi-v7a; do
+            mkdir -p "app/src/main/jniLibs/$abi"
+            for core in fbneo mame2000 mame2003 mame2010; do
+              curl -fL --retry 4 "$base/$abi/${core}_libretro_android.so.zip" -o "$RUNNER_TEMP/$abi-$core.zip"
+            done
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import hashlib, os
+          cores=('fbneo','mame2000','mame2003','mame2010')
+          lines=['Official Libretro Android nightly/latest cores; hashes identify this build.']
+          for abi in ('arm64-v8a','armeabi-v7a'):
+              for core in cores:
+                  archive=Path(os.environ['RUNNER_TEMP']) / f'{abi}-{core}.zip'
+                  expected=f'{core}_libretro_android.so'
+                  with ZipFile(archive) as z:
+                      matches=[n for n in z.namelist() if Path(n).name==expected]
+                      if len(matches)!=1: raise SystemExit(f'Missing/duplicate {expected} in {archive}')
+                      data=z.read(matches[0])
+                  if len(data)<1_000_000 or data[:4]!=b'\x7fELF': raise SystemExit(f'Invalid core {expected}')
+                  output=Path('app/src/main/jniLibs')/abi/('lib'+expected)
+                  output.write_bytes(data)
+                  lines.append(f'{abi}/{core} archive SHA-256 {hashlib.sha256(archive.read_bytes()).hexdigest()}')
+                  lines.append(f'{abi}/{core} library bytes {len(data)}')
+          Path('app/src/main/assets/cores/ARCADE_BUILD_INFO.txt').write_text('\n'.join(lines)+'\n')
+          PY
       - name: Build installable Vortix APK
         run: gradle assembleDebug --no-daemon
+      - name: Verify all arcade cores are in the APK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          apk=Path('app/build/outputs/apk/debug/app-debug.apk')
+          cores=('fbneo','mame2000','mame2003','mame2003_plus','mame2010')
+          expected=[f'lib/{abi}/lib{core}_libretro_android.so' for abi in ('arm64-v8a','armeabi-v7a') for core in cores]
+          with ZipFile(apk) as z:
+              names=set(z.namelist())
+              missing=[name for name in expected if name not in names]
+              if missing: raise SystemExit(f'Missing arcade core libraries: {missing}')
+              for name in expected:
+                  with z.open(name) as f:
+                      if f.read(4)!=b'\x7fELF': raise SystemExit(f'Invalid native library: {name}')
+              for name in ('assets/licenses/FBNeo-License.txt','assets/licenses/MAME-Noncommercial-Notice.txt','assets/cores/ARCADE_BUILD_INFO.txt'):
+                  if name not in names: raise SystemExit(f'Missing core notice/build info: {name}')
+          print(f'Verified {len(expected)} arcade libraries in {apk} ({apk.stat().st_size} bytes)')
+          PY
       - name: Publish direct APK download
         env:
           GH_TOKEN: ${{ github.token }}
@@ -133,4 +191,4 @@ jobs:
           gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix.apk \
             --target "$GITHUB_SHA" \
             --title "Vortix classic systems ${GITHUB_RUN_NUMBER}" \
-            --notes "Vortix 0.9.5: CHIP-8; SNES; Mega Drive/Master System/Game Gear; MAME 2003-Plus arcade; NES/Famicom; Game Boy/Color; Game Boy Advance; Atari 2600/7800; PC Engine; Atari Lynx; Neo Geo Pocket/Color; WonderSwan/Color. Virtual joystick. ARMv7 + ARM64, Android 5.0+. ZIP bundles extract matching inner ROMs, including CHIP-8 .ch8/.c8. L/R shoulder buttons; ROM switch; save/load states; cheat codes; sharp/CRT/LCD filters; and four per-game special-move macros triggered by double-tapping A/B/C/D. No ROMs or BIOS included; no PS1/PS2 cores."
+            --notes "Vortix 0.9.6: white-neon library/profile screens; automatic ROM-system detection for supported extensions and ZIP contents; visible per-system core catalog; CHIP-8; SNES9x; Genesis Plus GX; FBNeo and MAME 2000 (0.37b5), 2003 (0.78), 2003-Plus (0.78+), and 2010 (0.139) arcade cores with per-game chooser; FCEUmm NES; Gambatte GB/GBC; Beetle GBA; Stella 2014 and ProSystem Atari; Beetle PCE, Lynx, NGP and WonderSwan. Round neon A/B/C/D buttons, cyan joystick, and four configurable per-game double-tap special macros with sequential and simultaneous steps (e.g. BAIXO+DIREITA, A+B). Immersive gameplay UI; Android system file picker presentation is controlled by Android. ARMv7 + ARM64, Android 5.0+. Already-patched ROM hacks can be opened when they use a supported format. No ROMs or BIOS included. Arcade ROMset compatibility depends on choosing a matching core; no PS1/PS2 cores."
