@@ -45,9 +45,11 @@ jobs:
         run: python3 patch_retro_systems.py
       - name: Add white-neon UI, ROM detection and arcade combo controls
         run: python3 patch_v096.py
-      - name: Add LibretroDroid license
+      - name: Add bundled core and LibretroDroid license notices
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets"
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"
+          cp "$GITHUB_WORKSPACE/FBNeo-License.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/FBNeo-License.txt"
+          cp "$GITHUB_WORKSPACE/MAME-Noncommercial-Notice.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/MAME-Noncommercial-Notice.txt"
           curl -fL --retry 3 https://raw.githubusercontent.com/Swordfish90/LibretroDroid/0.13.2/LICENSE -o "$GITHUB_WORKSPACE/app/src/main/assets/LibretroDroid-LICENSE.txt"
       - name: Build Snes9x native core for Super Nintendo
         run: |
@@ -131,9 +133,7 @@ jobs:
           base='https://buildbot.libretro.com/nightly/android/latest'
           mkdir -p app/src/main/assets/cores app/src/main/assets/licenses
           test -s app/src/main/assets/licenses/FBNeo-License.txt
-          test -s app/src/main/assets/licenses/MAME-2000-LICENSE.txt
-          test -s app/src/main/assets/licenses/MAME-2003-LICENSE.md
-          test -s app/src/main/assets/licenses/MAME-2010-LICENSE.txt
+          test -s app/src/main/assets/licenses/MAME-Noncommercial-Notice.txt
           for abi in arm64-v8a armeabi-v7a; do
             mkdir -p "app/src/main/jniLibs/$abi"
             for core in fbneo mame2000 mame2003 mame2010; do
@@ -178,7 +178,7 @@ jobs:
               for name in expected:
                   with z.open(name) as f:
                       if f.read(4)!=b'\x7fELF': raise SystemExit(f'Invalid native library: {name}')
-              for name in ('assets/licenses/FBNeo-License.txt','assets/licenses/MAME-2000-LICENSE.txt','assets/licenses/MAME-2003-LICENSE.md','assets/licenses/MAME-2010-LICENSE.txt','assets/cores/ARCADE_BUILD_INFO.txt'):
+              for name in ('assets/licenses/FBNeo-License.txt','assets/licenses/MAME-Noncommercial-Notice.txt','assets/cores/ARCADE_BUILD_INFO.txt'):
                   if name not in names: raise SystemExit(f'Missing core notice/build info: {name}')
           print(f'Verified {len(expected)} arcade libraries in {apk} ({apk.stat().st_size} bytes)')
           PY
@@ -191,4 +191,4 @@ jobs:
           gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix.apk \
             --target "$GITHUB_SHA" \
             --title "Vortix classic systems ${GITHUB_RUN_NUMBER}" \
-            --notes "Vortix 0.9.6: white-neon library; automatic ROM-system detection for supported formats and ZIP contents; visible per-system core catalog; CHIP-8; SNES9x; Genesis Plus GX; NES/FCEUmm; GB/GBC/Gambatte; GBA/Beetle GBA; Atari 2600/7800; PC Engine; Lynx; Neo Geo Pocket; WonderSwan. Arcade core library: FBNeo and MAME 2000 (0.37b5), MAME 2003 (0.78), MAME 2003-Plus (0.78+) and MAME 2010 (0.139), with manual core choice per game. Round neon A/B/C/D buttons, cyan joystick, and four per-game double-tap special macros with sequential and simultaneous steps such as A+B. Immersive full-screen game view. ARMv7 + ARM64, Android 5.0+. Already-patched ROM hacks are supported when they use a supported format. No ROMs or BIOS included; arcade compatibility depends on a matching ROMset/core, and the arcade cores have non-commercial licenses."
+            --notes "Vortix 0.9.6: white-neon library/profile screens; automatic ROM-system detection for supported extensions and ZIP contents; visible per-system core catalog; CHIP-8; SNES9x; Genesis Plus GX; FBNeo and MAME 2000 (0.37b5), 2003 (0.78), 2003-Plus (0.78+), and 2010 (0.139) arcade cores with per-game chooser; FCEUmm NES; Gambatte GB/GBC; Beetle GBA; Stella 2014 and ProSystem Atari; Beetle PCE, Lynx, NGP and WonderSwan. Round neon A/B/C/D buttons, cyan joystick, and four configurable per-game double-tap special macros with sequential and simultaneous steps (e.g. BAIXO+DIREITA, A+B). Immersive gameplay UI; Android system file picker presentation is controlled by Android. ARMv7 + ARM64, Android 5.0+. Already-patched ROM hacks can be opened when they use a supported format. No ROMs or BIOS included. Arcade ROMset compatibility depends on choosing a matching core; no PS1/PS2 cores."
