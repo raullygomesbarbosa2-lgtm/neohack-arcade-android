@@ -1,0 +1,74 @@
+name: Build Vortix Test 2 ABI APKs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android build tools
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;35.0.0'
+      - name: Download current Vortix Test 2 APK
+        run: |
+          mkdir -p input dist
+          curl -fL --retry 3 'https://github.com/raullygomesbarbosa2-lgtm/neohack-arcade-android/releases/download/native-26/Vortix.apk' -o input/Vortix.apk
+      - name: Create and verify ABI-specific APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          src=Path('input/Vortix.apk')
+          for abi in ('arm64-v8a','armeabi-v7a'):
+              out=Path('dist')/f'Vortix-{abi}-unsigned.apk'
+              with ZipFile(src) as original, ZipFile(out,'w') as filtered:
+                  for item in original.infolist():
+                      name=item.filename
+                      if name.upper().startswith('META-INF/'):
+                          continue
+                      if name.startswith('lib/') and len(name.split('/'))>1 and name.split('/')[1]!=abi:
+                          continue
+                      filtered.writestr(item,original.read(name))
+              with ZipFile(out) as apk:
+                  names=set(apk.namelist())
+                  found={n.split('/')[1] for n in names if n.startswith('lib/') and len(n.split('/'))>2}
+                  if found!={abi}: raise SystemExit(f'{out}: expected only {abi}, found {found}')
+                  required=[f'lib/{abi}/lib{x}_libretro_android.so' for x in ('fbneo','mame2000','mame2003','mame2003_plus','mame2010')]
+                  missing=[n for n in required if n not in names]
+                  if missing: raise SystemExit(f'{out}: missing cores {missing}')
+              print(f'Verified {abi} package contents; {out.stat().st_size} bytes')
+          PY
+          mkdir -p "$ANDROID_HOME/build-tools/35.0.0"
+          echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
+          key="$RUNNER_TEMP/vortix-test-key.jks"
+          keytool -genkeypair -keystore "$key" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Vortix Test Build,O=Android,C=BR'
+          for abi in arm64-v8a armeabi-v7a; do
+            unsigned="dist/Vortix-${abi}-unsigned.apk"
+            aligned="dist/Vortix-${abi}-aligned.apk"
+            final="dist/Vortix-${abi}.apk"
+            "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -p 4 "$unsigned" "$aligned"
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks "$key" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out "$final" "$aligned"
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$final"
+            "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$final" | grep -F "package: name='br.com.raully.neohackarcade.test098'"
+            rm "$unsigned" "$aligned"
+          done
+      - name: Publish ABI troubleshooting release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "native-${GITHUB_RUN_NUMBER}-abi" dist/Vortix-arm64-v8a.apk dist/Vortix-armeabi-v7a.apk \
+            --target "$GITHUB_SHA" \
+            --title "Vortix 0.9.8 Test 2 ABI APKs ${GITHUB_RUN_NUMBER}" \
+            --notes "Troubleshooting attempt: the existing Vortix Test 2 APK was repackaged into separate ABI-specific APKs. CI verified package br.com.raully.neohackarcade.test098 and exactly one native ABI per APK. Try Vortix-arm64-v8a.apk first on most modern Android phones; use Vortix-armeabi-v7a.apk for 32-bit ARM devices. Smaller ABI APKs are not proof of the cause of the install failure, and installation has not been tested on the user's phone."
