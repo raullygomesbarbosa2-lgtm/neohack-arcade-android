@@ -46,7 +46,7 @@ jobs:
       - name: Add white-neon UI, ROM detection and arcade combo controls
         run: python3 patch_v096.py
       - name: Improve per-game special-move macros
-        run: python3 patch_v097.py
+        run: python3 patch_v097.py && python3 patch_vortix_test.py
       - name: Add bundled core and LibretroDroid license notices
         run: |
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"
