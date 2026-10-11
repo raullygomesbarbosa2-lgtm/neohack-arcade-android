@@ -25,6 +25,7 @@ m = manifest.read_text().replace('android:label="Vortix"', 'android:label="Vorti
 manifest.write_text(m)
 
 build = Path("app/build.gradle")
-g = build.read_text().replace("versionCode 20", "versionCode 21").replace("versionName '0.9.11'", "versionName '1.0.0'")
+g = build.read_text().replace("applicationId 'br.com.raully.neohackarcade'", "applicationId 'br.com.raully.neohackarcade.pro'")
+g = g.replace("versionCode 20", "versionCode 21").replace("versionName '0.9.11'", "versionName '1.0.0'")
 build.write_text(g)
 print("Applied Vortix Pro branding and keyless Pix button")
