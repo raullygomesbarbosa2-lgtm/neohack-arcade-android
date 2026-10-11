@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -51,6 +51,8 @@ jobs:
         run: python3 patch_v100_official.py
       - name: Add configurable simultaneous special-move chords for Vortix 0.9.11
         run: python3 patch_v101_chord_macros.py
+      - name: Brand Vortix Pro and add one-tap Pix key copy
+        run: python3 patch_v102_pix_button.py
       - name: Add bundled core and LibretroDroid license notices
         run: |
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"
@@ -167,6 +169,10 @@ jobs:
                   lines.append(f'{abi}/{core} library bytes {len(data)}')
           Path('app/src/main/assets/cores/ARCADE_BUILD_INFO.txt').write_text('\n'.join(lines)+'\n')
           PY
+      - name: Remove native debug symbols to reduce APK size
+        run: |
+          STRIP="$ANDROID_HOME/ndk/${NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          find app/src/main/jniLibs -type f -name '*.so' -print0 | xargs -0 -r "$STRIP" --strip-debug
       - name: Build installable single-ABI Vortix APKs
         run: gradle assembleDebug --no-daemon
       - name: Verify APK ABI contents and bundled arcade cores
@@ -194,14 +200,12 @@ jobs:
                       if name not in names: raise SystemExit(f'Missing core notice/build info in {apk}: {name}')
               print(f'Verified single-ABI {abi} APK: {apk} ({apk.stat().st_size} bytes)')
           PY
-      - name: Publish direct APK download
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p dist
-          cp app/build/outputs/apk/debug/app-arm64-v8a-debug.apk dist/Vortix-0.9.11-arm64-v8a.apk
-          cp app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk dist/Vortix-0.9.11-armeabi-v7a.apk
-          gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix-0.9.11-arm64-v8a.apk dist/Vortix-0.9.11-armeabi-v7a.apk \
-            --target "$GITHUB_SHA" \
-            --title "Vortix 0.9.11 ${GITHUB_RUN_NUMBER}" \
-            --notes "Official Vortix 0.9.11: application ID br.com.raully.neohackarcade and launcher name Vortix; retains the dark cyan-neon interface. Special moves now trigger by pressing configured two-button chords simultaneously (defaults A+B and C+D) on either the touch controls or a physical controller. Each game has a separate editor for each chord and its output sequence; commas separate sequence steps and + means simultaneous buttons. A 130 ms recognition window preserves ordinary single-button input. ABI-specific APKs are provided for ARM64-v8a and armeabi-v7a. Android 5.0+. No ROMs or BIOS included; game/core compatibility and configured macros determine behavior. This debug-signed APK may not update an existing Vortix install signed with a different key. Do not uninstall an existing app unless its local saves/macros are backed up. Bluetooth hardware and gameplay have not been device-tested."
+      - name: Confirm Pix key is absent from public build
+        run: test ! -f app/src/main/assets/pix_key.txt
+      - name: Upload keyless ARM64 build for private finishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vortix-Pro-arm64-keyless
+          path: app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
+          if-no-files-found: error
+          retention-days: 1
