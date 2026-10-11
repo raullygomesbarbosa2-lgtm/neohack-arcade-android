@@ -45,8 +45,8 @@ jobs:
         run: python3 patch_retro_systems.py
       - name: Add white-neon UI, ROM detection and arcade combo controls
         run: python3 patch_v096.py
-      - name: Improve per-game special-move macros
-        run: python3 patch_v097.py && python3 patch_vortix_test.py && python3 patch_v098.py
+      - name: Improve per-game macros, dark cyan theme, and distinct Test 3 package
+        run: python3 patch_v097.py && python3 patch_vortix_test.py && python3 patch_v098.py && python3 patch_v099.py
       - name: Add bundled core and LibretroDroid license notices
         run: |
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"
@@ -163,34 +163,41 @@ jobs:
                   lines.append(f'{abi}/{core} library bytes {len(data)}')
           Path('app/src/main/assets/cores/ARCADE_BUILD_INFO.txt').write_text('\n'.join(lines)+'\n')
           PY
-      - name: Build installable Vortix APK
+      - name: Build installable single-ABI Vortix APKs
         run: gradle assembleDebug --no-daemon
-      - name: Verify all arcade cores are in the APK
+      - name: Verify APK ABI contents and bundled arcade cores
         run: |
           python3 - <<'PY'
           from pathlib import Path
           from zipfile import ZipFile
-          apk=Path('app/build/outputs/apk/debug/app-debug.apk')
+          root=Path('app/build/outputs/apk/debug')
           cores=('fbneo','mame2000','mame2003','mame2003_plus','mame2010')
-          expected=[f'lib/{abi}/lib{core}_libretro_android.so' for abi in ('arm64-v8a','armeabi-v7a') for core in cores]
-          with ZipFile(apk) as z:
-              names=set(z.namelist())
-              missing=[name for name in expected if name not in names]
-              if missing: raise SystemExit(f'Missing arcade core libraries: {missing}')
-              for name in expected:
-                  with z.open(name) as f:
-                      if f.read(4)!=b'\x7fELF': raise SystemExit(f'Invalid native library: {name}')
-              for name in ('assets/licenses/FBNeo-License.txt','assets/licenses/MAME-Noncommercial-Notice.txt','assets/cores/ARCADE_BUILD_INFO.txt'):
-                  if name not in names: raise SystemExit(f'Missing core notice/build info: {name}')
-          print(f'Verified {len(expected)} arcade libraries in {apk} ({apk.stat().st_size} bytes)')
+          required=('assets/licenses/FBNeo-License.txt','assets/licenses/MAME-Noncommercial-Notice.txt','assets/cores/ARCADE_BUILD_INFO.txt')
+          for abi, filename in (('arm64-v8a','app-arm64-v8a-debug.apk'),('armeabi-v7a','app-armeabi-v7a-debug.apk')):
+              apk=root/filename
+              if not apk.is_file(): raise SystemExit(f'Missing split APK: {apk}')
+              with ZipFile(apk) as z:
+                  names=set(z.namelist())
+                  native=[n for n in names if n.startswith('lib/')]
+                  if any(not n.startswith(f'lib/{abi}/') for n in native): raise SystemExit(f'{apk} contains a foreign ABI: {native}')
+                  expected=[f'lib/{abi}/lib{core}_libretro_android.so' for core in cores]
+                  missing=[n for n in expected if n not in names]
+                  if missing: raise SystemExit(f'Missing arcade cores in {apk}: {missing}')
+                  for name in expected:
+                      with z.open(name) as f:
+                          if f.read(4)!=b'\x7fELF': raise SystemExit(f'Invalid native library: {name}')
+                  for name in required:
+                      if name not in names: raise SystemExit(f'Missing core notice/build info in {apk}: {name}')
+              print(f'Verified single-ABI {abi} APK: {apk} ({apk.stat().st_size} bytes)')
           PY
       - name: Publish direct APK download
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/Vortix.apk
-          gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix.apk \
+          cp app/build/outputs/apk/debug/app-arm64-v8a-debug.apk dist/Vortix-Test-3-arm64-v8a.apk
+          cp app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk dist/Vortix-Test-3-armeabi-v7a.apk
+          gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix-Test-3-arm64-v8a.apk dist/Vortix-Test-3-armeabi-v7a.apk \
             --target "$GITHUB_SHA" \
-            --title "Vortix 0.9.8 Test 2 ${GITHUB_RUN_NUMBER}" \
-            --notes "Vortix 0.9.8: fresh installs open directly to the library using default player Jogador; profile-name input is dark and readable; new Vortix Test 2 package br.com.raully.neohackarcade.test098 installs alongside prior test builds. Existing 0.9.7 features: white-neon library/profile screens; automatic ROM-system detection for supported extensions and ZIP contents; visible per-system core catalog; CHIP-8; SNES9x; Genesis Plus GX; FBNeo and MAME 2000 (0.37b5), 2003 (0.78), 2003-Plus (0.78+), and 2010 (0.139) arcade cores with per-game chooser; FCEUmm NES; Gambatte GB/GBC; Beetle GBA; Stella 2014 and ProSystem Atari; Beetle PCE, Lynx, NGP and WonderSwan. Round neon A/B/C/D buttons, cyan joystick, and four configurable per-game double-tap special macros with sequential and simultaneous steps (e.g. BAIXO+DIREITA, A+B), 500 ms double-tap window, longer macro press duration and missing-configuration feedback. Immersive gameplay UI; Android system file picker presentation is controlled by Android. ARMv7 + ARM64, Android 5.0+. Already-patched ROM hacks can be opened when they use a supported format. No ROMs or BIOS included. Arcade ROMset compatibility depends on choosing a matching core; no PS1/PS2 cores."
+            --title "Vortix 0.9.9 Test 3 ${GITHUB_RUN_NUMBER}" \
+            --notes "Vortix 0.9.9 Test 3: fresh, distinct package br.com.raully.neohackarcade.test099 and launcher label Vortix Test 3; dark black base with cyan neon borders/glow and readable cyan/white text across the library, profile and controls; per-game default double-tap macros (A runs simultaneous A+B; B runs simultaneous C+D), editable independently for each ROM, with an empty override disabling a macro only for that game. Two verified single-ABI APK assets are provided for ARM64-v8a and armeabi-v7a, so this build installs alongside older test packages without replacing or deleting them. Existing features: automatic ROM-system detection for supported extensions and ZIP contents; visible per-system core catalog; CHIP-8; SNES9x; Genesis Plus GX; FBNeo and MAME 2000 (0.37b5), 2003 (0.78), 2003-Plus (0.78+), and 2010 (0.139) arcade cores with per-game chooser; FCEUmm NES; Gambatte GB/GBC; Beetle GBA; Stella 2014 and ProSystem Atari; Beetle PCE, Lynx, NGP and WonderSwan; virtual controls, saves, cheats, image filters and configurable macros. Android 5.0+. No ROMs or BIOS included. Arcade ROMset compatibility depends on choosing a matching core; no PS1/PS2 cores. Device installation and gameplay have not been tested."
