@@ -96,6 +96,10 @@ old_version = "versionCode 17\n        versionName '0.9.8-first-run-fix'"
 if build_text.count(old_version) != 1:
     raise SystemExit("Expected Vortix 0.9.8 version markers before bump")
 build_text = build_text.replace(old_version, "versionCode 18\n        versionName '0.9.9-cyan-macros'", 1)
+abi_filters = "        ndk { abiFilters 'armeabi-v7a', 'arm64-v8a' }\n"
+if build_text.count(abi_filters) != 1:
+    raise SystemExit("Expected the generated two-ABI ndk filter block before configuring split APKs")
+build_text = build_text.replace(abi_filters, "", 1)
 marker = "    packaging {\n"
 if build_text.count(marker) != 1:
     raise SystemExit("Expected exactly one Android packaging block")
