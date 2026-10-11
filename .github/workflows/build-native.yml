@@ -45,8 +45,10 @@ jobs:
         run: python3 patch_retro_systems.py
       - name: Add white-neon UI, ROM detection and arcade combo controls
         run: python3 patch_v096.py
-      - name: Improve per-game macros, dark cyan theme, and distinct Test 3 package
+      - name: Improve per-game macros and dark cyan theme (Test 3 patch sequence)
         run: python3 patch_v097.py && python3 patch_vortix_test.py && python3 patch_v098.py && python3 patch_v099.py
+      - name: Promote Test 3 theme and controls into official Vortix 0.9.10
+        run: python3 patch_v100_official.py
       - name: Add bundled core and LibretroDroid license notices
         run: |
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"
@@ -195,9 +197,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-arm64-v8a-debug.apk dist/Vortix-Test-3-arm64-v8a.apk
-          cp app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk dist/Vortix-Test-3-armeabi-v7a.apk
-          gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix-Test-3-arm64-v8a.apk dist/Vortix-Test-3-armeabi-v7a.apk \
+          cp app/build/outputs/apk/debug/app-arm64-v8a-debug.apk dist/Vortix-0.9.10-arm64-v8a.apk
+          cp app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk dist/Vortix-0.9.10-armeabi-v7a.apk
+          gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix-0.9.10-arm64-v8a.apk dist/Vortix-0.9.10-armeabi-v7a.apk \
             --target "$GITHUB_SHA" \
-            --title "Vortix 0.9.9 Test 3 ${GITHUB_RUN_NUMBER}" \
-            --notes "Vortix 0.9.9 Test 3: fresh, distinct package br.com.raully.neohackarcade.test099 and launcher label Vortix Test 3; dark black base with cyan neon borders/glow and readable cyan/white text across the library, profile and controls; per-game default double-tap macros (A runs simultaneous A+B; B runs simultaneous C+D), editable independently for each ROM, with an empty override disabling a macro only for that game. Two verified single-ABI APK assets are provided for ARM64-v8a and armeabi-v7a, so this build installs alongside older test packages without replacing or deleting them. Existing features: automatic ROM-system detection for supported extensions and ZIP contents; visible per-system core catalog; CHIP-8; SNES9x; Genesis Plus GX; FBNeo and MAME 2000 (0.37b5), 2003 (0.78), 2003-Plus (0.78+), and 2010 (0.139) arcade cores with per-game chooser; FCEUmm NES; Gambatte GB/GBC; Beetle GBA; Stella 2014 and ProSystem Atari; Beetle PCE, Lynx, NGP and WonderSwan; virtual controls, saves, cheats, image filters and configurable macros. Android 5.0+. No ROMs or BIOS included. Arcade ROMset compatibility depends on choosing a matching core; no PS1/PS2 cores. Device installation and gameplay have not been tested."
+            --title "Vortix 0.9.10 ${GITHUB_RUN_NUMBER}" \
+            --notes "Official Vortix 0.9.10: application ID br.com.raully.neohackarcade and launcher name Vortix. Includes the dark cyan-neon interface and editable per-game double-tap defaults: A triggers simultaneous A+B and B triggers simultaneous C+D. ABI-specific APKs are provided for ARM64-v8a and armeabi-v7a. Android 5.0+. No ROMs or BIOS included; arcade ROMset compatibility depends on choosing a matching core. This debug-signed APK may not update an existing Vortix install signed with a different key. Do not uninstall an existing app unless its local saves/macros are backed up. Device installation and gameplay have not been tested."
