@@ -1,0 +1,278 @@
+name: Build Vortix Pro ARMv7 30-Day Trial APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Install Android SDK and NDK
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
+            "platforms;android-35" "build-tools;35.0.0" \
+            "ndk;${NDK_VERSION}" "cmake;3.22.1"
+      - name: Generate Android project files
+        run: python3 make_apk_project.py
+      - name: Install Pillow for launcher artwork
+        run: python3 -m pip install --user Pillow
+      - name: Apply launcher artwork and fix duplicate Kotlin classes
+        run: python3 patch_native_project.py
+      - name: Add extra retro systems to Android app
+        run: python3 patch_retro_systems.py
+      - name: Add white-neon UI, ROM detection and arcade combo controls
+        run: python3 patch_v096.py
+      - name: Improve per-game macros and dark cyan theme (Test 3 patch sequence)
+        run: python3 patch_v097.py && python3 patch_vortix_test.py && python3 patch_v098.py && python3 patch_v099.py
+      - name: Promote Test 3 theme and controls into official Vortix 0.9.10
+        run: python3 patch_v100_official.py
+      - name: Add configurable simultaneous special-move chords for Vortix 0.9.11
+        run: python3 patch_v101_chord_macros.py
+      - name: Brand Vortix Pro and add one-tap Pix key copy
+        run: python3 patch_v102_pix_button.py
+      - name: Reapply local ARM64 core catalog browser to generated sources
+        run: python3 patch_v103_core_browser.py
+      - name: Configure a single-ABI ARMv7 build with 178 available cores
+        run: python3 patch_armv7_variant.py
+      - name: Add the 30-day first-launch trial
+        run: python3 patch_v104_trial.py
+      - name: Download and normalize the official ARMv7 catalog (178 cores)
+        run: python3 prepare_armv7_catalog.py
+      - name: Validate the keyless 178-core ARMv7 catalog and 30-day trial
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, struct
+          from pathlib import Path
+          from zipfile import ZipFile
+          assets = Path('app/src/main/assets')
+          catalog = json.loads((assets / 'core_catalog.json').read_text())
+          gradle = Path('app/build.gradle').read_text()
+          java = Path('app/src/main/java/br/com/raully/neohackarcade/MainActivity.java').read_text()
+          if "applicationId 'br.com.raully.neohackarcade.pro'" not in gradle or 'minSdk 21' not in gradle:
+              raise SystemExit('The test APK must preserve the Pro applicationId and minSdk 21.')
+          if "include 'armeabi-v7a'" not in gradle or 'arm64-v8a' in gradle:
+              raise SystemExit('The APK split must contain only the ARMv7 ABI.')
+          cores = catalog.get('cores', [])
+          ids = [core.get('id') for core in cores]
+          if catalog.get('version') != 1 or len(cores) != 178 or len(set(ids)) != 178:
+              raise SystemExit('The ARMv7 catalog must contain exactly 178 unique core entries.')
+          if sum(core.get('catalogType') == 'libretro' for core in cores) != 153 or sum(core.get('catalogType') == 'engine-virtual' for core in cores) != 25:
+              raise SystemExit('Expected 153 Libretro and 25 engine/virtual entries.')
+          payload = sum(core.get('sourceArchiveBytes', 0) for core in cores)
+          if catalog.get('sourceArchivePayloadBytes') != payload or payload >= 1024**3:
+              raise SystemExit('ARMv7 source ZIP payload metadata is inconsistent or exceeds 1 GiB.')
+          if 'TRIAL_DURATION_MS = 30L * 24L * 60L * 60L * 1000L' not in java or 'if (isTrialExpired())' not in java:
+              raise SystemExit('The first-launch 30-day trial gate is missing.')
+          for core in cores:
+              archive = assets / core['coreZip']
+              with ZipFile(archive) as bundle:
+                  if bundle.namelist() != [core['coreFile']]:
+                      raise SystemExit(f"Unexpected files in normalized package {archive}")
+                  data = bundle.read(core['coreFile'])
+              if len(data) != core['coreBytes'] or hashlib.sha256(data).hexdigest() != core['sha256']:
+                  raise SystemExit(f"ARMv7 core size/hash mismatch for {core['id']}")
+              if len(data) < 20 or data[:4] != b'\x7fELF' or data[4] != 1 or data[5] != 1 or struct.unpack_from('<H', data, 18)[0] != 40:
+                  raise SystemExit(f"{core['id']} is not a little-endian ARMv7 ELF32 library")
+              if core.get('abi') != 'armeabi-v7a' or len(core.get('sourceArchiveSha256', '')) != 64 or len(core.get('coreInfoSha256', '')) != 64 or not core.get('coreInfoUrl') or not core.get('license'):
+                  raise SystemExit(f"Missing ARMv7/hash/license/source metadata for {core['id']}")
+              if not core.get('sourceArchiveUrl', '').startswith('https://buildbot.libretro.com/nightly/android/latest/armeabi-v7a/'):
+                  raise SystemExit(f"Non-official ARMv7 source URL for {core['id']}")
+          if any(core.get('id') == 'opera' for core in cores):
+              raise SystemExit('Opera must remain excluded because its license review is unresolved.')
+          rust_dos = next(core for core in cores if core['id'] == 'rust_dos')
+          if rust_dos.get('license') != 'GPLv2+' or rust_dos.get('cargoLicense') != 'GPL-2.0-or-later' or rust_dos.get('coreExperimental') is not True or rust_dos.get('supportsNoGame') is not True or rust_dos.get('firmwareCount') != 0:
+              raise SystemExit('Rust-DOS source/license/core metadata must remain explicitly recorded.')
+          if (assets / 'pix_key.txt').exists():
+              raise SystemExit('Public keyless build must not contain a Pix key asset.')
+          forbidden = {'.nes', '.sfc', '.smc', '.gba', '.gb', '.gbc', '.rom', '.bin', '.cue', '.iso', '.chd', '.bios', '.a26', '.a78'}
+          game_files = [str(path) for path in assets.rglob('*') if path.is_file() and path.suffix.lower() in forbidden and path.parent.name != 'corepacks']
+          if game_files:
+              raise SystemExit(f'Game/ROM/BIOS files must not be packaged: {game_files}')
+          print('Validated 178 ARMv7 core packages, source/license metadata, trial gate, and keyless/no-game assets.')
+          PY
+      - name: Add bundled core and LibretroDroid license notices
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"
+          cp "$GITHUB_WORKSPACE/FBNeo-License.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/FBNeo-License.txt"
+          cp "$GITHUB_WORKSPACE/MAME-Noncommercial-Notice.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/MAME-Noncommercial-Notice.txt"
+          cp "$GITHUB_WORKSPACE/GPL-2.0.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/GPL-2.0.txt"
+          cp "$GITHUB_WORKSPACE/RUST-DOS-LICENSE.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/RUST-DOS-LICENSE.txt"
+          cp "$GITHUB_WORKSPACE/CORE-CATALOG-LICENSES.md" "$GITHUB_WORKSPACE/app/src/main/assets/CORE-CATALOG-LICENSES.md"
+          curl -fL --retry 3 https://raw.githubusercontent.com/Swordfish90/LibretroDroid/0.13.2/LICENSE -o "$GITHUB_WORKSPACE/app/src/main/assets/LibretroDroid-LICENSE.txt"
+      - name: Build Snes9x native core for Super Nintendo
+        run: |
+          git clone --depth 1 https://github.com/libretro/snes9x.git "$RUNNER_TEMP/snes9x"
+          cd "$RUNNER_TEMP/snes9x/libretro/jni"
+          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+            APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/assets"
+          ARMV7_CORE=$(find "$RUNNER_TEMP/snes9x" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+          ARM64_CORE=$(find "$RUNNER_TEMP/snes9x" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+          test -n "$ARMV7_CORE" && test -n "$ARM64_CORE"
+          cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libsnes9x_libretro_android.so"
+          cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libsnes9x_libretro_android.so"
+          cp "$RUNNER_TEMP/snes9x/LICENSE" "$GITHUB_WORKSPACE/app/src/main/assets/Snes9x-LICENSE.txt"
+          if [ -f "$RUNNER_TEMP/snes9x/filter/snes_ntsc-license.txt" ]; then cp "$RUNNER_TEMP/snes9x/filter/snes_ntsc-license.txt" "$GITHUB_WORKSPACE/app/src/main/assets/Snes9x-NTSC-LICENSE.txt"; fi
+      - name: Build Genesis Plus GX native core for classic Sega systems
+        run: |
+          git clone --depth 1 https://github.com/libretro/Genesis-Plus-GX-Wide.git "$RUNNER_TEMP/genesis-plus-gx"
+          cd "$RUNNER_TEMP/genesis-plus-gx/libretro/jni"
+          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+            APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/assets"
+          ARMV7_CORE=$(find "$RUNNER_TEMP/genesis-plus-gx" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+          ARM64_CORE=$(find "$RUNNER_TEMP/genesis-plus-gx" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+          test -n "$ARMV7_CORE" && test -n "$ARM64_CORE"
+          cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libgenesis_plus_gx_libretro_android.so"
+          cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libgenesis_plus_gx_libretro_android.so"
+          cp "$RUNNER_TEMP/genesis-plus-gx/LICENSE.txt" "$GITHUB_WORKSPACE/app/src/main/assets/Genesis-Plus-GX-LICENSE.txt"
+      - name: Build MAME 2003-Plus native core for classic arcade
+        run: |
+          git clone --depth 1 https://github.com/libretro/mame2003-plus-libretro.git "$RUNNER_TEMP/mame2003-plus"
+          cd "$RUNNER_TEMP/mame2003-plus/jni"
+          "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+            APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/assets"
+          ARMV7_CORE=$(find "$RUNNER_TEMP/mame2003-plus" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+          ARM64_CORE=$(find "$RUNNER_TEMP/mame2003-plus" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+          test -n "$ARMV7_CORE" && test -n "$ARM64_CORE"
+          cp "$ARMV7_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libmame2003_plus_libretro_android.so"
+          cp "$ARM64_CORE" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libmame2003_plus_libretro_android.so"
+          cp "$RUNNER_TEMP/mame2003-plus/LICENSE.md" "$GITHUB_WORKSPACE/app/src/main/assets/MAME2003-Plus-LICENSE.md"
+      - name: Build additional classic console cores
+        run: |
+          set -euo pipefail
+          build_core() {
+            local id="$1" repo="$2" checkout="$3" subdir="$4" output="$5"
+            local src="$RUNNER_TEMP/$id" armv7 arm64 license
+            git clone --depth 1 --branch "$checkout" "$repo" "$src"
+            cd "$src/$subdir"
+            "$ANDROID_HOME/ndk/${NDK_VERSION}/ndk-build" \
+              APP_ABI="armeabi-v7a arm64-v8a" APP_PLATFORM=android-21 -j2
+            armv7=$(find "$src" -type f -path '*/armeabi-v7a/libretro.so' -print -quit)
+            arm64=$(find "$src" -type f -path '*/arm64-v8a/libretro.so' -print -quit)
+            test -n "$armv7" && test -n "$arm64"
+            cp "$armv7" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/lib${output}"
+            cp "$arm64" "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/lib${output}"
+            license=$(find "$src" -maxdepth 4 -type f \
+              \( -iname 'LICENSE*' -o -iname 'COPYING*' \) -print -quit)
+            if [ -n "$license" ]; then
+              cp "$license" "$GITHUB_WORKSPACE/app/src/main/assets/${id}-LICENSE.txt"
+            else
+              echo "No top-level license file found for $id; preserving source license reference in README."
+            fi
+          }
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" \
+            "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" \
+            "$GITHUB_WORKSPACE/app/src/main/assets"
+          build_core fceumm https://github.com/libretro/libretro-fceumm.git master jni fceumm_libretro_android.so
+          build_core gambatte https://github.com/libretro/gambatte-libretro.git master libgambatte/libretro/jni gambatte_libretro_android.so
+          build_core mednafen_gba https://github.com/libretro/beetle-gba-libretro.git master jni mednafen_gba_libretro_android.so
+          build_core stella2014 https://github.com/libretro/stella2014-libretro.git master jni stella2014_libretro_android.so
+          build_core prosystem https://github.com/libretro/prosystem-libretro.git master jni prosystem_libretro_android.so
+          build_core mednafen_pce_fast https://github.com/libretro/beetle-pce-fast-libretro.git master jni mednafen_pce_fast_libretro_android.so
+          build_core mednafen_lynx https://github.com/libretro/beetle-lynx-libretro.git master jni mednafen_lynx_libretro_android.so
+          build_core mednafen_ngp https://github.com/libretro/beetle-ngp-libretro.git master jni mednafen_ngp_libretro_android.so
+          build_core mednafen_wswan https://github.com/libretro/beetle-wswan-libretro.git master jni mednafen_wswan_libretro_android.so
+      - name: Download and verify FBNeo and MAME ROMset cores
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://buildbot.libretro.com/nightly/android/latest'
+          mkdir -p app/src/main/assets/cores app/src/main/assets/licenses
+          test -s app/src/main/assets/licenses/FBNeo-License.txt
+          test -s app/src/main/assets/licenses/MAME-Noncommercial-Notice.txt
+          for abi in arm64-v8a armeabi-v7a; do
+            mkdir -p "app/src/main/jniLibs/$abi"
+            for core in fbneo mame2000 mame2003 mame2010; do
+              curl -fL --retry 4 "$base/$abi/${core}_libretro_android.so.zip" -o "$RUNNER_TEMP/$abi-$core.zip"
+            done
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import hashlib, os
+          cores=('fbneo','mame2000','mame2003','mame2010')
+          lines=['Official Libretro Android nightly/latest cores; hashes identify this build.']
+          for abi in ('arm64-v8a','armeabi-v7a'):
+              for core in cores:
+                  archive=Path(os.environ['RUNNER_TEMP']) / f'{abi}-{core}.zip'
+                  expected=f'{core}_libretro_android.so'
+                  with ZipFile(archive) as z:
+                      matches=[n for n in z.namelist() if Path(n).name==expected]
+                      if len(matches)!=1: raise SystemExit(f'Missing/duplicate {expected} in {archive}')
+                      data=z.read(matches[0])
+                  if len(data)<1_000_000 or data[:4]!=b'\x7fELF': raise SystemExit(f'Invalid core {expected}')
+                  output=Path('app/src/main/jniLibs')/abi/('lib'+expected)
+                  output.write_bytes(data)
+                  lines.append(f'{abi}/{core} archive SHA-256 {hashlib.sha256(archive.read_bytes()).hexdigest()}')
+                  lines.append(f'{abi}/{core} library bytes {len(data)}')
+          Path('app/src/main/assets/cores/ARCADE_BUILD_INFO.txt').write_text('\n'.join(lines)+'\n')
+          PY
+      - name: Remove native debug symbols to reduce APK size
+        run: |
+          STRIP="$ANDROID_HOME/ndk/${NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+          find app/src/main/jniLibs -type f -name '*.so' -print0 | xargs -0 -r "$STRIP" --strip-debug
+      - name: Apply game controls, green theme, and local Pix settings
+        run: python3 patch_v105_game_controls.py
+      - name: Build the ARMv7-only Vortix Pro trial APK
+        run: gradle assembleDebug --no-daemon
+      - name: Verify the ARMv7 APK ABI, trial assets, and signing
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          root = Path('app/build/outputs/apk/debug')
+          apk = root / 'app-armeabi-v7a-debug.apk'
+          cores = ('fbneo', 'mame2000', 'mame2003', 'mame2003_plus', 'mame2010')
+          required = ('assets/licenses/FBNeo-License.txt', 'assets/licenses/MAME-Noncommercial-Notice.txt', 'assets/licenses/GPL-2.0.txt', 'assets/licenses/RUST-DOS-LICENSE.txt', 'assets/CORE-CATALOG-LICENSES.md', 'assets/cores/ARCADE_BUILD_INFO.txt', 'assets/core_catalog.json')
+          if not apk.is_file(): raise SystemExit(f'Missing ARMv7 APK: {apk}')
+          with ZipFile(apk) as z:
+              names = set(z.namelist())
+              native = [n for n in names if n.startswith('lib/')]
+              if any(not n.startswith('lib/armeabi-v7a/') for n in native): raise SystemExit(f'APK contains a foreign ABI: {native}')
+              expected = [f'lib/armeabi-v7a/lib{core}_libretro_android.so' for core in cores]
+              missing = [n for n in expected if n not in names]
+              if missing: raise SystemExit(f'Missing arcade cores in APK: {missing}')
+              for name in required:
+                  if name not in names: raise SystemExit(f'Missing license/catalog asset: {name}')
+              for name in expected:
+                  with z.open(name) as f:
+                      if f.read(4) != b'\x7fELF': raise SystemExit(f'Invalid native library: {name}')
+          print(f'Verified single-ABI ARMv7 APK: {apk} ({apk.stat().st_size} bytes)')
+          PY
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk | grep -F "package: name='br.com.raully.neohackarcade.pro'"
+      - name: Confirm Pix key is absent from public build
+        run: test ! -f app/src/main/assets/pix_key.txt
+      - name: Upload keyless ARMv7 30-day trial APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vortix-Pro-armv7-178-trial30d-keyless
+          path: app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk
+          if-no-files-found: error
+          retention-days: 7
