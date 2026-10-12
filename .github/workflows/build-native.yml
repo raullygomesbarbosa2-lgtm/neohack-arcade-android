@@ -53,6 +53,41 @@ jobs:
         run: python3 patch_v101_chord_macros.py
       - name: Brand Vortix Pro and add one-tap Pix key copy
         run: python3 patch_v102_pix_button.py
+      - name: Reapply local ARM64 core catalog browser to generated sources
+        run: python3 patch_v103_core_browser.py
+      - name: Validate the keyless two-core browser proof of concept
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          from zipfile import ZipFile
+          assets = Path('app/src/main/assets')
+          catalog = json.loads((assets / 'core_catalog.json').read_text())
+          gradle = Path('app/build.gradle').read_text()
+          if "applicationId 'br.com.raully.neohackarcade.pro'" not in gradle or 'minSdk 21' not in gradle:
+              raise SystemExit('The POC must preserve the production applicationId and minSdk 21.')
+          expected = {'fceumm', 'gambatte'}
+          cores = catalog.get('cores', [])
+          if catalog.get('version') != 1 or {core.get('id') for core in cores} != expected or len(cores) != 2:
+              raise SystemExit('The POC catalog must contain exactly the two test cores: fceumm and gambatte.')
+          for core in cores:
+              archive = assets / core['coreZip']
+              with ZipFile(archive) as bundle:
+                  if bundle.namelist() != [core['coreFile']]:
+                      raise SystemExit(f"Unexpected files in test core package {archive}")
+                  data = bundle.read(core['coreFile'])
+              if hashlib.sha256(data).hexdigest() != core['sha256']:
+                  raise SystemExit(f"SHA-256 mismatch for test core {core['id']}")
+              if len(data) < 20 or data[:4] != b'\x7fELF' or data[4:6] != b'\x02\x01' or data[18:20] != b'\xb7\x00':
+                  raise SystemExit(f"Test core {core['id']} is not a little-endian ARM64 ELF")
+          if (assets / 'pix_key.txt').exists():
+              raise SystemExit('Public keyless build must not contain a Pix key asset.')
+          forbidden = {'.nes', '.sfc', '.smc', '.gba', '.gb', '.gbc', '.rom', '.bin', '.cue', '.iso', '.chd', '.bios'}
+          game_files = [str(path) for path in assets.rglob('*') if path.is_file() and path.suffix.lower() in forbidden]
+          if game_files:
+              raise SystemExit(f'Game/ROM/BIOS files must not be packaged: {game_files}')
+          print('Validated the two test cores, package hashes, ARM64 ELF headers, and keyless/no-game POC assets.')
+          PY
       - name: Add bundled core and LibretroDroid license notices
         run: |
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"

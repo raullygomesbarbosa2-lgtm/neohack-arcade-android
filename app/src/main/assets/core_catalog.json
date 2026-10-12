@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "cores": [
+    {
+      "id": "fceumm",
+      "name": "FCEUmm",
+      "system": "NES / Famicom",
+      "abi": "arm64-v8a",
+      "coreZip": "corepacks/fceumm.zip",
+      "coreFile": "libfceumm_libretro_android.so",
+      "sha256": "db77c680989f9c72cdbef398085c254f06499a09ad7375d0006b3248a020263b"
+    },
+    {
+      "id": "gambatte",
+      "name": "Gambatte",
+      "system": "Game Boy / Game Boy Color",
+      "abi": "arm64-v8a",
+      "coreZip": "corepacks/gambatte.zip",
+      "coreFile": "libgambatte_libretro_android.so",
+      "sha256": "e5b630c827e8c2cfbc27b91b67097f56e6bdf1a33f2efcbdbafd18cfe376a1d2"
+    }
+  ]
+}
