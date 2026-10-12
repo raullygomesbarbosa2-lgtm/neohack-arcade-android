@@ -125,8 +125,8 @@ add_once(
     '            if (!"arm64-v8a".equals(item.getString("abi"))) throw new IllegalArgumentException("ABI não suportada para o núcleo " + id + ".");\n'
     '            if (!id.matches("[A-Za-z0-9_-]{1,48}") || !ids.add(id)) throw new IllegalArgumentException("ID inválido ou duplicado no catálogo: " + id);\n'
     '            if (name.trim().isEmpty() || system.trim().isEmpty()) throw new IllegalArgumentException("O nome e o sistema são obrigatórios para cada núcleo.");\n'
-    '            if (!zip.matches("corepacks/[A-Za-z0-9._-]+\\.zip") || zip.contains("..")) throw new IllegalArgumentException("Caminho inválido para o pacote do núcleo " + id + ".");\n'
-    '            if (!file.matches("lib[A-Za-z0-9_]+\\.so")) throw new IllegalArgumentException("Nome de biblioteca inválido para o núcleo " + id + ".");\n'
+    '            if (!zip.matches("corepacks/[A-Za-z0-9._-]+[.]zip") || zip.contains("..")) throw new IllegalArgumentException("Caminho inválido para o pacote do núcleo " + id + ".");\n'
+    '            if (!file.matches("lib[A-Za-z0-9_]+[.]so")) throw new IllegalArgumentException("Nome de biblioteca inválido para o núcleo " + id + ".");\n'
     '            if (!hash.matches("[a-f0-9]{64}")) throw new IllegalArgumentException("SHA-256 inválido para o núcleo " + id + ".");\n'
     "            cores.add(new CoreCatalogEntry(id, name, system, zip, file, hash));\n"
     "        }\n"
