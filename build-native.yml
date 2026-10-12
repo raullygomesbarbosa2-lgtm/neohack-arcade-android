@@ -227,8 +227,6 @@ jobs:
         run: |
           STRIP="$ANDROID_HOME/ndk/${NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
           find app/src/main/jniLibs -type f -name '*.so' -print0 | xargs -0 -r "$STRIP" --strip-debug
-      - name: Apply game controls, green theme, and local Pix settings
-        run: python3 patch_v105_game_controls.py
       - name: Build the ARM64-only Vortix Pro trial APK
         run: gradle assembleDebug --no-daemon
       - name: Verify APK ABI contents and bundled arcade cores

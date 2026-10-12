@@ -59,6 +59,8 @@ jobs:
         run: python3 patch_armv7_variant.py
       - name: Add the 30-day first-launch trial
         run: python3 patch_v104_trial.py
+      - name: Apply game controls, green theme, and local Pix settings
+        run: python3 patch_v105_game_controls.py
       - name: Download and normalize the official ARMv7 catalog (178 cores)
         run: python3 prepare_armv7_catalog.py
       - name: Validate the keyless 178-core ARMv7 catalog and 30-day trial
