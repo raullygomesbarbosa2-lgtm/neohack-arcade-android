@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch ARMv7 bundles selected by a conservative upstream license-metadata allowlist."""
+"""Fetch official ARMv7 Libretro bundles, verify ELF32/ARM, and normalize 178 cores."""
 from __future__ import annotations
 
 import copy
@@ -18,24 +18,13 @@ ASSETS = Path("app/src/main/assets")
 CATALOG_PATH = ASSETS / "core_catalog.json"
 BUILD_BASE = "https://buildbot.libretro.com/nightly/android/latest/armeabi-v7a/"
 MAX_SOURCE_PAYLOAD = 1024 ** 3
-ARMV7_EXCLUDED = {
+EXCLUDED = {
     "amiberry", "armsx2", "azahar", "cemu", "citra", "citra2018",
     "irogb", "mamemess", "panda3ds", "pcee2", "pcsx2", "ymir",
 }
-ALLOWED_LICENSES = {
-    "MIT", "BSD-3-Clause", "zlib", "Zlib", "Public Domain", "ISC",
-    "The Unlicense", "2-clause BSD", "3-clause BSD",
-}
-EXPECTED_IDS = {
-    "ardens", "chailove", "crocods", "dingooemu", "dirksimple", "doukutsu_rs",
-    "fixgb", "fixnes", "galaksija", "gw", "handy", "jaxe", "lowresnx", "lutro",
-    "mojozork", "native32emu", "nekop2", "nicaiemu", "np2kai", "oberon",
-    "openlara", "pd777", "play", "potator", "sameboy", "sameduck", "skyemu",
-    "spmp8000emu", "tic80", "uw8", "uzem", "vaporspec", "vircon32", "wasm4",
-}
-EXPECTED_TOTAL = 34
-EXPECTED_LIBRETRO = 23
-EXPECTED_ENGINE = 11
+EXPECTED_TOTAL = 178
+EXPECTED_LIBRETRO = 153
+EXPECTED_ENGINE = 25
 
 
 def fail(message: str) -> None:
@@ -90,34 +79,25 @@ def main() -> None:
     all_cores = catalog.get("cores", [])
     if catalog.get("version") != 1 or len(all_cores) != 190:
         fail("Expected the checked-in version-1 190-entry source catalog.")
-    ids = [core.get("id") for core in all_cores]
+    ids = [c.get("id") for c in all_cores]
     if len(set(ids)) != 190:
         fail("Source catalog IDs are not unique.")
-    actual_excluded = {core["id"] for core in all_cores if core["id"] in ARMV7_EXCLUDED}
-    if actual_excluded != ARMV7_EXCLUDED:
-        fail(f"ARMv7 exclusions differ from the reviewed list: {sorted(actual_excluded ^ ARMV7_EXCLUDED)}")
-    cores = [
-        copy.deepcopy(core) for core in all_cores
-        if core["id"] not in ARMV7_EXCLUDED and core.get("license") in ALLOWED_LICENSES
-    ]
-    selected_ids = {core["id"] for core in cores}
-    if selected_ids != EXPECTED_IDS:
-        fail(f"Selected IDs differ from the reviewed allowlist; missing={sorted(EXPECTED_IDS-selected_ids)}, extra={sorted(selected_ids-EXPECTED_IDS)}")
+    actual_excluded = {c["id"] for c in all_cores if c["id"] in EXCLUDED}
+    if actual_excluded != EXCLUDED:
+        fail(f"ARMv7 exclusions differ from the reviewed list: {sorted(actual_excluded ^ EXCLUDED)}")
+    cores = [copy.deepcopy(c) for c in all_cores if c["id"] not in EXCLUDED]
     if len(cores) != EXPECTED_TOTAL:
-        fail(f"Expected {EXPECTED_TOTAL} ARMv7 entries with declared allowlisted licenses, found {len(cores)}.")
-    if sum(core.get("catalogType") == "libretro" for core in cores) != EXPECTED_LIBRETRO:
-        fail(f"Expected {EXPECTED_LIBRETRO} Libretro entries.")
-    if sum(core.get("catalogType") == "engine-virtual" for core in cores) != EXPECTED_ENGINE:
-        fail(f"Expected {EXPECTED_ENGINE} engine/virtual entries.")
+        fail(f"Expected {EXPECTED_TOTAL} ARMv7 entries, found {len(cores)}.")
+    if sum(c.get("catalogType") == "libretro" for c in cores) != EXPECTED_LIBRETRO:
+        fail("Expected 153 Libretro entries in the ARMv7 catalog.")
+    if sum(c.get("catalogType") == "engine-virtual" for c in cores) != EXPECTED_ENGINE:
+        fail("Expected 25 engine/virtual entries in the ARMv7 catalog.")
     for core in cores:
-        lic = str(core.get("license", ""))
-        lowered = lic.lower()
+        license_name = str(core.get("license", "")).lower()
         if not core.get("name") or not core.get("system") or not core.get("coreInfoUrl"):
-            fail(f"Missing source or license metadata for {core.get('id')}")
-        if lic not in ALLOWED_LICENSES:
-            fail(f"Non-allowlisted license appeared for {core['id']}: {lic}")
-        if any(term in lowered for term in ("gpl", "agpl", "lgpl", "mame", "non-commercial", "noncommercial", "non commercial", "unknown", " or ", "/")):
-            fail(f"Restricted or ambiguous license appeared for {core['id']}: {lic}")
+            fail(f"Missing source metadata for {core.get('id')}")
+        if any(x in license_name for x in ("non-commercial", "noncommercial", "non commercial", "unknown")):
+            fail(f"Screened-out license appeared for {core['id']}: {core.get('license')}")
         if not re.fullmatch(r"[A-Za-z0-9._-]+\.zip", str(core.get("sourceArchive", ""))):
             fail(f"Unsafe source archive name for {core['id']}")
         if not re.fullmatch(r"corepacks/[A-Za-z0-9._-]+\.zip", str(core.get("coreZip", ""))):
@@ -134,7 +114,8 @@ def main() -> None:
         source_zip = Path(temp) / "source.zip"
         for index, core in enumerate(cores, 1):
             ident = core["id"]
-            url = BUILD_BASE + core["sourceArchive"]
+            filename = core["sourceArchive"]
+            url = BUILD_BASE + filename
             archive_bytes, archive_sha = download(url, source_zip)
             total_payload += archive_bytes
             if total_payload >= MAX_SOURCE_PAYLOAD:
@@ -144,10 +125,10 @@ def main() -> None:
                     corrupt = archive.testzip()
                     if corrupt is not None:
                         fail(f"ZIP CRC validation failed for {ident}: {corrupt}")
-                    files = [member for member in archive.infolist() if not member.is_dir()]
-                    so_members = [member for member in files if member.filename.lower().endswith(".so")]
+                    files = [m for m in archive.infolist() if not m.is_dir()]
+                    so_members = [m for m in files if m.filename.lower().endswith(".so")]
                     if len(so_members) != 1:
-                        fail(f"Expected exactly one .so for {ident}; found {[member.filename for member in so_members]}")
+                        fail(f"Expected exactly one .so for {ident}; found {[m.filename for m in so_members]}")
                     info = so_members[0]
                     if PurePosixPath(info.filename).name != core["coreFile"]:
                         fail(f"Unexpected ARMv7 member name for {ident}: {info.filename}")
@@ -195,7 +176,7 @@ def main() -> None:
     catalog["cores"] = cores
     catalog["sourceArchivePayloadBytes"] = total_payload
     CATALOG_PATH.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Prepared {len(cores)} ARMv7 core packages ({total_payload} source ZIP bytes); filtered by exact allowlist and permissive upstream license metadata.")
+    print(f"Prepared {len(cores)} ARMv7 core packages ({total_payload} source ZIP bytes); excluded {len(EXCLUDED)} unavailable cores.")
 
 
 if __name__ == "__main__":
