@@ -61,6 +61,8 @@ jobs:
         run: python3 patch_v105_game_controls.py
       - name: Make touch controls immediate and finger-friendly
         run: python3 patch_v106_touch_response.py
+      - name: Add configurable dynamic special buttons
+        run: python3 patch_v107_dynamic_specials.py
       - name: Download and normalize the pinned ARM64 190-core catalog
         run: python3 prepare_core_catalog.py
       - name: Validate the keyless 190-core browser and 30-day trial
