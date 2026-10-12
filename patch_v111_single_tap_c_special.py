@@ -28,15 +28,7 @@ text = text[:start] + '''    private String specialCTriggerPreferenceKey() {
         return getPreferences(0).getBoolean(specialCTriggerPreferenceKey(), false);
     }
 
-    private int specialChoiceIndex(String token) {
-        String value = token == null ? "" : token.trim().toUpperCase(java.util.Locale.ROOT);
-        if ("B".equals(value)) return 1;
-        if ("C".equals(value)) return 2;
-        if ("D".equals(value)) return 3;
-        return 0;
-    }
-
-    private void showSpecialConfigDialog() {
+        private void showSpecialConfigDialog() {
         final String[] choices = {"A", "B", "C", "D"};
         android.widget.LinearLayout form = new android.widget.LinearLayout(this);
         form.setOrientation(android.widget.LinearLayout.VERTICAL);
