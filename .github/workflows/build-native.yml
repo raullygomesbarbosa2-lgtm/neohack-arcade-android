@@ -1,4 +1,4 @@
-name: Build Vortix APK
+name: Build Vortix Pro ARM64 30-Day Trial APK
 
 on:
   push:
@@ -55,9 +55,11 @@ jobs:
         run: python3 patch_v102_pix_button.py
       - name: Reapply local ARM64 core catalog browser to generated sources
         run: python3 patch_v103_core_browser.py
+      - name: Add the 30-day first-launch trial
+        run: python3 patch_v104_trial.py
       - name: Download and normalize the pinned ARM64 190-core catalog
         run: python3 prepare_core_catalog.py
-      - name: Validate the keyless 190-core browser proof of concept
+      - name: Validate the keyless 190-core browser and 30-day trial
         run: |
           python3 - <<'PY'
           import hashlib, json
@@ -225,7 +227,7 @@ jobs:
         run: |
           STRIP="$ANDROID_HOME/ndk/${NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
           find app/src/main/jniLibs -type f -name '*.so' -print0 | xargs -0 -r "$STRIP" --strip-debug
-      - name: Build the ARM64-only Vortix POC APK
+      - name: Build the ARM64-only Vortix Pro trial APK
         run: gradle assembleDebug --no-daemon
       - name: Verify APK ABI contents and bundled arcade cores
         run: |
@@ -254,10 +256,10 @@ jobs:
           PY
       - name: Confirm Pix key is absent from public build
         run: test ! -f app/src/main/assets/pix_key.txt
-      - name: Upload keyless ARM64 build for private finishing
+      - name: Upload keyless ARM64 30-day trial APK
         uses: actions/upload-artifact@v4
         with:
-          name: Vortix-Pro-arm64-keyless
+          name: Vortix-Pro-arm64-trial30d-keyless
           path: app/build/outputs/apk/debug/app-arm64-v8a-debug.apk
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
