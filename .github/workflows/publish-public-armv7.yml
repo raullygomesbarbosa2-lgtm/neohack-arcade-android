@@ -1,0 +1,70 @@
+name: Publish public ARMv7 release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful ARMv7 build run ID
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK artifact from successful build run
+        uses: actions/download-artifact@v4
+        with:
+          name: Vortix-Pro-armv7-public-34perm-trial30d
+          path: public-release
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.run_id }}
+      - name: Verify downloaded APK artifact
+        shell: bash
+        env:
+          SOURCE_RUN_ID: ${{ inputs.run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          APK=public-release/app-armeabi-v7a-release.apk
+          test -s "$APK"
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          apk=Path('public-release/app-armeabi-v7a-release.apk')
+          with ZipFile(apk) as z:
+              names=set(z.namelist())
+              catalog=z.read('assets/core_catalog.json')
+              import json
+              if len(json.loads(catalog).get('cores',[])) != 34:
+                  raise SystemExit('Release artifact does not contain exactly 34 catalog entries.')
+              if 'assets/PUBLIC-CORE-NOTICES.md' not in names:
+                  raise SystemExit('Release artifact lacks core notices.')
+              if not any(n.startswith('lib/armeabi-v7a/') for n in names):
+                  raise SystemExit('Release artifact has no ARMv7 native libraries.')
+              if any(n.startswith('lib/') and not n.startswith('lib/armeabi-v7a/') for n in names):
+                  raise SystemExit('Release artifact contains another ABI.')
+          PY
+      - name: Publish APK as a public GitHub Release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: vortix-pro-armv7-public-${{ inputs.run_id }}
+          name: Vortix Pro ARMv7 public 34-core build ${{ inputs.run_id }}
+          draft: false
+          prerelease: false
+          files: public-release/app-armeabi-v7a-release.apk
+          fail_on_unmatched_files: true
+          body: |
+            Reduced public ARMv7 APK for Android 5.0+ devices.
+
+            - 34 core entries (23 Libretro, 11 engine/virtual), selected by upstream license metadata only; this is not an independent legal clearance.
+            - Persistent release signing is used.
+            - Corrected touchscreen special controls support up to six configured simultaneous pairs; blank slots stay hidden, Bluetooth mappings use the same simultaneous pairs, and Cadillacs and Dinosaurs defaults to A+B. No automatic move sequences.
+            - No games, ROMs, BIOS files, or Pix key are included.
+            - Source build run: ${{ inputs.run_id }}
+            - Read `PUBLIC-CORE-NOTICES.md` in the APK's `assets` for attribution, license metadata, official binary URLs, and hashes.
