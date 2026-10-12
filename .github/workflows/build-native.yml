@@ -68,7 +68,7 @@ jobs:
           gradle = Path('app/build.gradle').read_text()
           if "applicationId 'br.com.raully.neohackarcade.pro'" not in gradle or 'minSdk 21' not in gradle:
               raise SystemExit('The POC must preserve the production applicationId and minSdk 21.')
-          expected_payload = 728351579
+          expected_payload = 741482440
           cores = catalog.get('cores', [])
           ids = [core.get('id') for core in cores]
           if catalog.get('version') != 1 or len(cores) != 190 or len(set(ids)) != 190:
@@ -89,9 +89,11 @@ jobs:
                       raise SystemExit(f"Core member size mismatch for {core['id']}")
               if core.get('abi') != 'arm64-v8a' or len(core.get('sha256', '')) != 64 or len(core.get('coreInfoSha256', '')) != 64 or not core.get('coreInfoUrl') or not core.get('license'):
                   raise SystemExit(f"Missing ARM64/hash/license/source metadata for {core['id']}")
-          opera = next(core for core in cores if core['id'] == 'opera')
-          if opera.get('license') != 'LGPL/Non-commercial' or opera.get('freebsdLicense') != 'GPLv2' or opera.get('licenseStatus') != 'conflict-review-required':
-              raise SystemExit('Opera upstream licensing discrepancy and GPLv2 source notice must remain documented.')
+          if any(core.get('id') == 'opera' for core in cores):
+              raise SystemExit('Opera must remain excluded because its license review is unresolved.')
+          rust_dos = next(core for core in cores if core['id'] == 'rust_dos')
+          if rust_dos.get('license') != 'GPLv2+' or rust_dos.get('cargoLicense') != 'GPL-2.0-or-later' or rust_dos.get('coreExperimental') is not True or rust_dos.get('supportsNoGame') is not True or rust_dos.get('firmwareCount') != 0:
+              raise SystemExit('Rust-DOS source/license/core metadata must remain explicitly recorded.')
           if (assets / 'pix_key.txt').exists():
               raise SystemExit('Public keyless build must not contain a Pix key asset.')
           forbidden = {'.nes', '.sfc', '.smc', '.gba', '.gb', '.gbc', '.rom', '.bin', '.cue', '.iso', '.chd', '.bios', '.a26', '.a78'}
@@ -106,6 +108,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/FBNeo-License.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/FBNeo-License.txt"
           cp "$GITHUB_WORKSPACE/MAME-Noncommercial-Notice.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/MAME-Noncommercial-Notice.txt"
           cp "$GITHUB_WORKSPACE/GPL-2.0.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/GPL-2.0.txt"
+          cp "$GITHUB_WORKSPACE/RUST-DOS-LICENSE.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/RUST-DOS-LICENSE.txt"
           cp "$GITHUB_WORKSPACE/CORE-CATALOG-LICENSES.md" "$GITHUB_WORKSPACE/app/src/main/assets/CORE-CATALOG-LICENSES.md"
           curl -fL --retry 3 https://raw.githubusercontent.com/Swordfish90/LibretroDroid/0.13.2/LICENSE -o "$GITHUB_WORKSPACE/app/src/main/assets/LibretroDroid-LICENSE.txt"
       - name: Build Snes9x native core for Super Nintendo
@@ -231,7 +234,7 @@ jobs:
           from zipfile import ZipFile
           root=Path('app/build/outputs/apk/debug')
           cores=('fbneo','mame2000','mame2003','mame2003_plus','mame2010')
-          required=('assets/licenses/FBNeo-License.txt','assets/licenses/MAME-Noncommercial-Notice.txt','assets/licenses/GPL-2.0.txt','assets/CORE-CATALOG-LICENSES.md','assets/cores/ARCADE_BUILD_INFO.txt')
+          required=('assets/licenses/FBNeo-License.txt','assets/licenses/MAME-Noncommercial-Notice.txt','assets/licenses/GPL-2.0.txt','assets/licenses/RUST-DOS-LICENSE.txt','assets/CORE-CATALOG-LICENSES.md','assets/cores/ARCADE_BUILD_INFO.txt')
           for abi, filename in (('arm64-v8a','app-arm64-v8a-debug.apk'),):
               apk=root/filename
               if not apk.is_file(): raise SystemExit(f'Missing split APK: {apk}')

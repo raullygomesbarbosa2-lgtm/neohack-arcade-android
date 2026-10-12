@@ -71,11 +71,7 @@ def validate_manifest(catalog: dict) -> list[dict]:
         total += size
         lic = c.get("license", "").lower()
         if any(x in lic for x in ("non-commercial", "noncommercial", "non commercial", "unknown")):
-            if ident != "opera" or c.get("licenseStatus") != "conflict-review-required":
-                fail(f"Screened-out license status appeared for {ident}: {c.get('license')}")
-        if ident == "opera":
-            if c.get("license") != "LGPL/Non-commercial" or c.get("freebsdLicense") != "GPLv2":
-                fail("Opera's upstream metadata / FreeBSD license discrepancy must remain explicitly recorded.")
+            fail(f"Screened-out license status appeared for {ident}: {c.get('license')}")
     if total >= MAX_SOURCE_PAYLOAD:
         fail(f"Source ZIP payload is {total} bytes; expected less than 1 GiB.")
     if catalog.get("sourceArchivePayloadBytes") != total:
