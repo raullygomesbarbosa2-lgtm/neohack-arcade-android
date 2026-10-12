@@ -55,7 +55,9 @@ jobs:
         run: python3 patch_v102_pix_button.py
       - name: Reapply local ARM64 core catalog browser to generated sources
         run: python3 patch_v103_core_browser.py
-      - name: Validate the keyless two-core browser proof of concept
+      - name: Download and normalize the pinned ARM64 190-core catalog
+        run: python3 prepare_core_catalog.py
+      - name: Validate the keyless 190-core browser proof of concept
         run: |
           python3 - <<'PY'
           import hashlib, json
@@ -66,33 +68,45 @@ jobs:
           gradle = Path('app/build.gradle').read_text()
           if "applicationId 'br.com.raully.neohackarcade.pro'" not in gradle or 'minSdk 21' not in gradle:
               raise SystemExit('The POC must preserve the production applicationId and minSdk 21.')
-          expected = {'fceumm', 'gambatte'}
+          expected_payload = 728351579
           cores = catalog.get('cores', [])
-          if catalog.get('version') != 1 or {core.get('id') for core in cores} != expected or len(cores) != 2:
-              raise SystemExit('The POC catalog must contain exactly the two test cores: fceumm and gambatte.')
+          ids = [core.get('id') for core in cores]
+          if catalog.get('version') != 1 or len(cores) != 190 or len(set(ids)) != 190:
+              raise SystemExit('The catalog must contain exactly 190 unique core entries.')
+          if sum(core.get('catalogType') == 'libretro' for core in cores) != 165 or sum(core.get('catalogType') == 'engine-virtual' for core in cores) != 25:
+              raise SystemExit('Expected 165 Libretro and 25 engine/virtual catalog entries.')
+          if catalog.get('sourceArchivePayloadBytes') != expected_payload or expected_payload >= 1024**3:
+              raise SystemExit('The pinned official source ZIP payload must match and remain below 1 GiB.')
+          if "include 'arm64-v8a'" not in gradle or "include 'armeabi-v7a', 'arm64-v8a'" in gradle:
+              raise SystemExit('The experimental APK split must package ARM64 only.')
           for core in cores:
               archive = assets / core['coreZip']
               with ZipFile(archive) as bundle:
                   if bundle.namelist() != [core['coreFile']]:
-                      raise SystemExit(f"Unexpected files in test core package {archive}")
-                  data = bundle.read(core['coreFile'])
-              if hashlib.sha256(data).hexdigest() != core['sha256']:
-                  raise SystemExit(f"SHA-256 mismatch for test core {core['id']}")
-              if len(data) < 20 or data[:4] != b'\x7fELF' or data[4:6] != b'\x02\x01' or data[18:20] != b'\xb7\x00':
-                  raise SystemExit(f"Test core {core['id']} is not a little-endian ARM64 ELF")
+                      raise SystemExit(f"Unexpected files in normalized package {archive}")
+                  info = bundle.getinfo(core['coreFile'])
+                  if info.file_size != core['coreBytes']:
+                      raise SystemExit(f"Core member size mismatch for {core['id']}")
+              if core.get('abi') != 'arm64-v8a' or len(core.get('sha256', '')) != 64 or len(core.get('coreInfoSha256', '')) != 64 or not core.get('coreInfoUrl') or not core.get('license'):
+                  raise SystemExit(f"Missing ARM64/hash/license/source metadata for {core['id']}")
+          opera = next(core for core in cores if core['id'] == 'opera')
+          if opera.get('license') != 'LGPL/Non-commercial' or opera.get('freebsdLicense') != 'GPLv2' or opera.get('licenseStatus') != 'conflict-review-required':
+              raise SystemExit('Opera upstream licensing discrepancy and GPLv2 source notice must remain documented.')
           if (assets / 'pix_key.txt').exists():
               raise SystemExit('Public keyless build must not contain a Pix key asset.')
-          forbidden = {'.nes', '.sfc', '.smc', '.gba', '.gb', '.gbc', '.rom', '.bin', '.cue', '.iso', '.chd', '.bios'}
-          game_files = [str(path) for path in assets.rglob('*') if path.is_file() and path.suffix.lower() in forbidden]
+          forbidden = {'.nes', '.sfc', '.smc', '.gba', '.gb', '.gbc', '.rom', '.bin', '.cue', '.iso', '.chd', '.bios', '.a26', '.a78'}
+          game_files = [str(path) for path in assets.rglob('*') if path.is_file() and path.suffix.lower() in forbidden and path.parent.name != 'corepacks']
           if game_files:
               raise SystemExit(f'Game/ROM/BIOS files must not be packaged: {game_files}')
-          print('Validated the two test cores, package hashes, ARM64 ELF headers, and keyless/no-game POC assets.')
+          print('Validated 190 normalized ARM64 core packages, source/license metadata, pinned hashes, and keyless/no-game POC assets.')
           PY
       - name: Add bundled core and LibretroDroid license notices
         run: |
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"
           cp "$GITHUB_WORKSPACE/FBNeo-License.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/FBNeo-License.txt"
           cp "$GITHUB_WORKSPACE/MAME-Noncommercial-Notice.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/MAME-Noncommercial-Notice.txt"
+          cp "$GITHUB_WORKSPACE/GPL-2.0.txt" "$GITHUB_WORKSPACE/app/src/main/assets/licenses/GPL-2.0.txt"
+          cp "$GITHUB_WORKSPACE/CORE-CATALOG-LICENSES.md" "$GITHUB_WORKSPACE/app/src/main/assets/CORE-CATALOG-LICENSES.md"
           curl -fL --retry 3 https://raw.githubusercontent.com/Swordfish90/LibretroDroid/0.13.2/LICENSE -o "$GITHUB_WORKSPACE/app/src/main/assets/LibretroDroid-LICENSE.txt"
       - name: Build Snes9x native core for Super Nintendo
         run: |
@@ -208,7 +222,7 @@ jobs:
         run: |
           STRIP="$ANDROID_HOME/ndk/${NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
           find app/src/main/jniLibs -type f -name '*.so' -print0 | xargs -0 -r "$STRIP" --strip-debug
-      - name: Build installable single-ABI Vortix APKs
+      - name: Build the ARM64-only Vortix POC APK
         run: gradle assembleDebug --no-daemon
       - name: Verify APK ABI contents and bundled arcade cores
         run: |
@@ -217,8 +231,8 @@ jobs:
           from zipfile import ZipFile
           root=Path('app/build/outputs/apk/debug')
           cores=('fbneo','mame2000','mame2003','mame2003_plus','mame2010')
-          required=('assets/licenses/FBNeo-License.txt','assets/licenses/MAME-Noncommercial-Notice.txt','assets/cores/ARCADE_BUILD_INFO.txt')
-          for abi, filename in (('arm64-v8a','app-arm64-v8a-debug.apk'),('armeabi-v7a','app-armeabi-v7a-debug.apk')):
+          required=('assets/licenses/FBNeo-License.txt','assets/licenses/MAME-Noncommercial-Notice.txt','assets/licenses/GPL-2.0.txt','assets/CORE-CATALOG-LICENSES.md','assets/cores/ARCADE_BUILD_INFO.txt')
+          for abi, filename in (('arm64-v8a','app-arm64-v8a-debug.apk'),):
               apk=root/filename
               if not apk.is_file(): raise SystemExit(f'Missing split APK: {apk}')
               with ZipFile(apk) as z:

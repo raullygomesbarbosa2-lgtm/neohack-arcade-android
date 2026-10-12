@@ -64,7 +64,7 @@ add_once(
 add_once(
     "        panel.addView(moreSystems, moreSystemsParams);\n",
     "        panel.addView(moreSystems, moreSystemsParams);\n\n"
-    '        Button coreBrowser = menuButton("NÚCLEOS • TESTE DO CATÁLOGO LOCAL");\n'
+    '        Button coreBrowser = menuButton("NÚCLEOS • CATÁLOGO ARM64 • POC 190");\n'
     "        coreBrowser.setOnClickListener(v -> showCoreCatalog());\n"
     "        LinearLayout.LayoutParams coreBrowserParams = buttonParams();\n"
     "        coreBrowserParams.topMargin = dp(6);\n"
@@ -126,7 +126,7 @@ add_once(
     '            if (!id.matches("[A-Za-z0-9_-]{1,48}") || !ids.add(id)) throw new IllegalArgumentException("ID inválido ou duplicado no catálogo: " + id);\n'
     '            if (name.trim().isEmpty() || system.trim().isEmpty()) throw new IllegalArgumentException("O nome e o sistema são obrigatórios para cada núcleo.");\n'
     '            if (!zip.matches("corepacks/[A-Za-z0-9._-]+[.]zip") || zip.contains("..")) throw new IllegalArgumentException("Caminho inválido para o pacote do núcleo " + id + ".");\n'
-    '            if (!file.matches("lib[A-Za-z0-9_]+[.]so")) throw new IllegalArgumentException("Nome de biblioteca inválido para o núcleo " + id + ".");\n'
+    '            if (!file.matches("[A-Za-z0-9._-]+[.]so") || file.contains("..")) throw new IllegalArgumentException("Nome de biblioteca inválido para o núcleo " + id + ".");\n'
     '            if (!hash.matches("[a-f0-9]{64}")) throw new IllegalArgumentException("SHA-256 inválido para o núcleo " + id + ".");\n'
     "            cores.add(new CoreCatalogEntry(id, name, system, zip, file, hash));\n"
     "        }\n"
@@ -169,7 +169,7 @@ add_once(
     "                    int read;\n"
     "                    while ((read = zip.read(buffer)) != -1) {\n"
     "                        total += read;\n"
-    '                        if (total > 256L * 1024L * 1024L) throw new IllegalArgumentException("O pacote do núcleo excede 256 MB.");\n'
+    '                        if (total > 1024L * 1024L * 1024L) throw new IllegalArgumentException("O núcleo excede o limite de 1 GiB.");\n'
     "                        digest.update(buffer, 0, read);\n"
     "                        output.write(buffer, 0, read);\n"
     "                    }\n"
@@ -289,4 +289,16 @@ add_once(
 )
 
 main.write_text(s)
-print("Applied reproducible local ARM64 core-catalog browser patch")
+
+build = Path("app/build.gradle")
+gradle = build.read_text()
+abi_line = "include 'armeabi-v7a', 'arm64-v8a'"
+if abi_line in gradle:
+    gradle = gradle.replace(abi_line, "include 'arm64-v8a'")
+elif "include 'arm64-v8a'" not in gradle:
+    raise SystemExit("Could not restrict the POC APK split to the ARM64 ABI.")
+filter_line = "abiFilters 'armeabi-v7a', 'arm64-v8a'"
+if filter_line in gradle:
+    gradle = gradle.replace(filter_line, "abiFilters 'arm64-v8a'")
+build.write_text(gradle)
+print("Applied reproducible ARM64-only core-catalog browser patch")
