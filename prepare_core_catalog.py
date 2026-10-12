@@ -10,6 +10,7 @@ import shutil
 import struct
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -87,18 +88,64 @@ def elf_arm64_header(header: bytes) -> bool:
             and header[5] == 1 and struct.unpack_from("<H", header, 18)[0] == 183)
 
 
-def download(url: str, target: Path) -> tuple[int, str]:
+def download(url: str, target: Path, expected_size: int) -> tuple[int, str]:
     request = urllib.request.Request(url, headers={"User-Agent": "Vortix-Pro-core-catalog/1.0"})
     digest = hashlib.sha256()
     total = 0
     with urllib.request.urlopen(request, timeout=180) as response, target.open("wb") as out:
         if response.status != 200:
-            fail(f"Buildbot returned HTTP {response.status} for {url}")
+            raise RuntimeError(f"Buildbot returned HTTP {response.status}")
+        declared = response.headers.get("Content-Length")
+        if declared is not None and int(declared) != expected_size:
+            raise ValueError(f"HTTP Content-Length was {declared}; expected {expected_size} bytes")
         for chunk in iter(lambda: response.read(1024 * 1024), b""):
+            total += len(chunk)
+            if total > expected_size:
+                raise ValueError(f"download exceeded expected size {expected_size}")
             out.write(chunk)
             digest.update(chunk)
-            total += len(chunk)
     return total, digest.hexdigest()
+
+
+def download_verified(core: dict, target: Path, attempts: int = 5) -> None:
+    """Fetch a pinned archive from scratch and retry incomplete/corrupt transfers."""
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        # Never resume or append: every attempt starts with an empty destination.
+        target.unlink(missing_ok=True)
+        try:
+            size, source_sha = download(
+                core["sourceArchiveUrl"], target, core["sourceArchiveBytes"]
+            )
+            if size != core["sourceArchiveBytes"]:
+                raise ValueError(
+                    f"expected {core['sourceArchiveBytes']} bytes, received {size}"
+                )
+            if source_sha != core["sourceArchiveSha256"]:
+                raise ValueError("SHA-256 does not match the pinned source archive")
+            with zipfile.ZipFile(target) as archive:
+                corrupt_member = archive.testzip()
+                if corrupt_member is not None:
+                    raise zipfile.BadZipFile(
+                        f"CRC/integrity check failed for member {corrupt_member!r}"
+                    )
+            return
+        except Exception as error:
+            last_error = error
+            target.unlink(missing_ok=True)
+            if attempt == attempts:
+                break
+            delay = min(2 ** (attempt - 1), 16)
+            print(
+                f"Retry {attempt}/{attempts - 1} for {core['id']} after "
+                f"{type(error).__name__}: {error}; waiting {delay}s.",
+                flush=True,
+            )
+            time.sleep(delay)
+    fail(
+        f"Could not download a complete, pinned, valid ZIP for {core['id']} "
+        f"after {attempts} clean attempts: {last_error}"
+    )
 
 
 def prepare(cores: list[dict]) -> None:
@@ -113,11 +160,7 @@ def prepare(cores: list[dict]) -> None:
         for index, core in enumerate(cores, 1):
             ident = core["id"]
             source_zip = tempdir / "source.zip"
-            size, source_sha = download(core["sourceArchiveUrl"], source_zip)
-            if size != core["sourceArchiveBytes"]:
-                fail(f"Source archive size changed for {ident}: expected {core['sourceArchiveBytes']}, received {size}.")
-            if source_sha != core["sourceArchiveSha256"]:
-                fail(f"Source archive SHA-256 changed for {ident}.")
+            download_verified(core, source_zip)
             try:
                 source = zipfile.ZipFile(source_zip)
             except zipfile.BadZipFile as error:
@@ -161,6 +204,10 @@ def prepare(cores: list[dict]) -> None:
                     if normalized.namelist() != [core["coreFile"]]:
                         tmp_path.unlink(missing_ok=True)
                         fail(f"Normalized package for {ident} must contain exactly one .so member.")
+                    corrupt_member = normalized.testzip()
+                    if corrupt_member is not None:
+                        tmp_path.unlink(missing_ok=True)
+                        fail(f"Normalized package for {ident} failed ZIP CRC validation at {corrupt_member!r}.")
                 tmp_path.replace(out_path)
             source_zip.unlink(missing_ok=True)
             print(f"[{index}/{len(cores)}] verified {ident}: {count} bytes, sha256 {core['sha256']}", flush=True)
