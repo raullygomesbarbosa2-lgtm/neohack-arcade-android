@@ -132,6 +132,14 @@ new_keyup = '''            int mapped = mapControllerUp(keyCode);
             return true;'''
 replace_once(old_keyup, new_keyup, "immediate Bluetooth key-up")
 
+# Remove the old delayed chord recognizer; physical and touch buttons now emit
+# normal simultaneous key-down/key-up events directly.
+replace_method(
+    "    private static final long SPECIAL_CHORD_WINDOW_MS = 130L;\n",
+    "    private void playSpecialMacroStep(java.util.ArrayList<java.util.ArrayList<Integer>> sequence, int index) {\n",
+    "",
+)
+
 # Add a simple, live sensitivity slider to the on-screen controls settings.
 replace_once(
     '        android.widget.TextView opacityLabel = new android.widget.TextView(this);\n',
@@ -177,6 +185,9 @@ replace_once(
     '            loading[0] = false;\n            getPreferences(0).edit().putInt("stick_sensitivity", 78).apply();\n            sensitivitySeek.setProgress(78);\n            persist.run();\n        });\n        selector.setSelection(0);',
     "sensitivity reset",
 )
+
+if "handleConfiguredChordKey(" in s or "triggerSpecialChord(" in s:
+    raise SystemExit("A delayed chord-handler reference remains in generated MainActivity.java")
 
 main.write_text(s, encoding="utf-8")
 print("Applied immediate multitouch input, larger targets, lighter stick, per-game A+B default, and hold-to-release specials")
