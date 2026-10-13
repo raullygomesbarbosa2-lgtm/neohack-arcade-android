@@ -41,11 +41,34 @@ build = Path("app/build.gradle")
 g = build.read_text(encoding="utf-8")
 if "applicationId 'br.com.raully.neohackarcade.pro'" not in g:
     raise SystemExit("Expected Vortix Pro applicationId not found")
-if "versionCode 21" not in g or "versionName '1.0.0'" not in g:
-    raise SystemExit("Unexpected version anchors; refusing to alter build metadata")
-g = g.replace("versionCode 21", "versionCode 22", 1)
-g = g.replace("versionName '1.0.0'", "versionName '1.0.1-demo'", 1)
-build.write_text(g, encoding="utf-8")
+lines = g.splitlines(keepends=True)
+code_updated = name_updated = False
+for index, line in enumerate(lines):
+    stripped = line.strip()
+    if stripped.startswith("versionCode "):
+        parts = stripped.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            raise SystemExit("Generated versionCode is not numeric")
+        next_code = max(int(parts[1]) + 1, 22)
+        indent = line[:len(line) - len(line.lstrip())]
+        newline = "\n" if line.endswith("\n") else ""
+        lines[index] = f"{indent}versionCode {next_code}{newline}"
+        code_updated = True
+    elif stripped.startswith("versionName "):
+        value = stripped[len("versionName "):].strip()
+        if len(value) < 2 or value[0] not in ("'", '"') or value[-1] != value[0]:
+            raise SystemExit("Generated versionName is not quoted")
+        quote = value[0]
+        name = value[1:-1]
+        if not name.endswith("-demo"):
+            name += "-demo"
+        indent = line[:len(line) - len(line.lstrip())]
+        newline = "\n" if line.endswith("\n") else ""
+        lines[index] = f"{indent}versionName {quote}{name}{quote}{newline}"
+        name_updated = True
+if not code_updated or not name_updated:
+    raise SystemExit("Could not update both generated version fields")
+build.write_text("".join(lines), encoding="utf-8")
 
 # No private Pix key is bundled in assets.
 if Path("app/src/main/assets/pix_key.txt").exists():
