@@ -47,8 +47,8 @@ jobs:
         run: python3 patch_v097.py && python3 patch_vortix_test.py && python3 patch_v098.py && python3 patch_v099.py
       - name: Promote Test 3 theme and controls into official Vortix 0.9.10
         run: python3 patch_v100_official.py
-      - name: Add movable touch controls and multi-touch settings for Vortix 0.9.20
-        run: python3 patch_v101_chord_macros.py && python3 patch_v105_direct_chords.py && python3 patch_v106_release_signing.py && python3 patch_v107_manual_settings.py && python3 patch_v108_arcade2010_guard.py && python3 patch_v109_arcade_core_menu.py && python3 patch_v110_touch_controls.py && python3 patch_v114_movable_multitouch_controls.py && python3 patch_v115_special_ab_rect_button.py
+      - name: Add movable touch controls and multi-touch settings for Vortix 0.9.21
+        run: python3 patch_v101_chord_macros.py && python3 patch_v105_direct_chords.py && python3 patch_v106_release_signing.py && python3 patch_v107_manual_settings.py && python3 patch_v108_arcade2010_guard.py && python3 patch_v109_arcade_core_menu.py && python3 patch_v110_touch_controls.py && python3 patch_v114_movable_multitouch_controls.py && python3 patch_v115_special_ab_rect_button.py && python3 patch_v116_android_tv_cast_entry.py
       - name: Add bundled core and LibretroDroid license notices
         run: |
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/assets/licenses"
@@ -236,9 +236,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-arm64-v8a-release.apk dist/Vortix-0.9.20-arm64-v8a.apk
-          cp app/build/outputs/apk/release/app-armeabi-v7a-release.apk dist/Vortix-0.9.20-armeabi-v7a.apk
-          gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix-0.9.20-arm64-v8a.apk dist/Vortix-0.9.20-armeabi-v7a.apk \
+          cp app/build/outputs/apk/release/app-arm64-v8a-release.apk dist/Vortix-0.9.21-arm64-v8a.apk
+          cp app/build/outputs/apk/release/app-armeabi-v7a-release.apk dist/Vortix-0.9.21-armeabi-v7a.apk
+          gh release create "native-${GITHUB_RUN_NUMBER}" dist/Vortix-0.9.21-arm64-v8a.apk dist/Vortix-0.9.21-armeabi-v7a.apk \
             --target "$GITHUB_SHA" \
-            --title "Vortix 0.9.20 ${GITHUB_RUN_NUMBER}" \
-            --notes "Official Vortix 0.9.20: application ID br.com.raully.neohackarcade and launcher name Vortix; retains the cyan-neon interface. A/B/C/D and other on-screen controls can be repositioned individually so buttons can be placed close for simultaneous combos; touch settings provide 54/64/76 dp sizes and an enabled-by-default simultaneous multi-touch option. There is no separate C* control or special Bluetooth binding; normal C remains available, and Cadillacs and Dinosaurs defaults to simultaneous A+B. ARM64 and armeabi-v7a release-signed APKs. Android 5.0+. No ROMs or BIOS included. This release uses a new signing key; it may not update an older installation signed with another key, and Play Protect may still warn about sideloading. Back up local saves/macros before replacing an installation. Arcade 2010 picker validates non-empty ZIP files and reports invalid sets with a MAME 0.139 ROMset reminder; Java linkage failures show a diagnostic instead of closing silently. Native crashes and gameplay have not been tested on a physical device."
+            --title "Vortix 0.9.21 ${GITHUB_RUN_NUMBER}" \
+            --notes "Official Vortix 0.9.21: application ID br.com.raully.neohackarcade and launcher name Vortix; retains the cyan-neon interface. A/B/C/D and other on-screen controls can be repositioned individually so buttons can be placed close for simultaneous combos; touch settings provide 54/64/76 dp sizes and an enabled-by-default simultaneous multi-touch option. There is no separate C* control or special Bluetooth binding; normal C remains available, and Cadillacs and Dinosaurs defaults to simultaneous A+B. ARM64 and armeabi-v7a release-signed APKs. Android 5.0+. No ROMs or BIOS included. This release uses a new signing key; it may not update an older installation signed with another key, and Play Protect may still warn about sideloading. Back up local saves/macros before replacing an installation. Arcade 2010 picker validates non-empty ZIP files and reports invalid sets with a MAME 0.139 ROMset reminder; Java linkage failures show a diagnostic instead of closing silently. The in-game Transmitir para TV option opens Android's Wi-Fi display/Cast settings when available, or shows Smart View/Transmitir instructions otherwise. TV compatibility, device discovery, mirroring, native crashes and gameplay have not been tested on a physical device; support depends on the Android device and TV."
